@@ -1,0 +1,573 @@
+{
+  "variables": [],
+  "textStyles": [
+    {
+      "remote": {
+        "type": "boolean",
+        "value": false
+      },
+      "description": {
+        "type": "string",
+        "value": ""
+      },
+      "textCase": {
+        "type": "string",
+        "value": "ORIGINAL"
+      },
+      "hangingList": {
+        "type": "boolean",
+        "value": false
+      },
+      "hangingPunctuation": {
+        "type": "boolean",
+        "value": false
+      },
+      "listSpacing": {
+        "type": "number",
+        "value": 0
+      },
+      "paragraphSpacing": {
+        "type": "number",
+        "value": 0
+      },
+      "paragraphIndent": {
+        "type": "number",
+        "value": 0
+      },
+      "leadingTrim": {
+        "type": "string",
+        "value": "NONE"
+      },
+      "lineHeight": {
+        "unit": {
+          "type": "string",
+          "value": "PIXELS"
+        },
+        "value": {
+          "type": "number",
+          "value": 15
+        }
+      },
+      "textDecoration": {
+        "type": "string",
+        "value": "NONE"
+      },
+      "fontSize": {
+        "type": "number",
+        "value": 13
+      },
+      "type": "TEXT",
+      "name": "Paragraph",
+      "fontName": {
+        "family": {
+          "type": "string",
+          "value": "Poppins"
+        },
+        "style": {
+          "type": "string",
+          "value": "Light"
+        }
+      },
+      "letterSpacing": {
+        "unit": {
+          "type": "string",
+          "value": "PERCENT"
+        },
+        "value": {
+          "type": "number",
+          "value": 0
+        }
+      }
+    },
+    {
+      "remote": {
+        "type": "boolean",
+        "value": false
+      },
+      "description": {
+        "type": "string",
+        "value": ""
+      },
+      "textCase": {
+        "type": "string",
+        "value": "TITLE"
+      },
+      "hangingList": {
+        "type": "boolean",
+        "value": false
+      },
+      "hangingPunctuation": {
+        "type": "boolean",
+        "value": false
+      },
+      "listSpacing": {
+        "type": "number",
+        "value": 0
+      },
+      "paragraphSpacing": {
+        "type": "number",
+        "value": 0
+      },
+      "paragraphIndent": {
+        "type": "number",
+        "value": 0
+      },
+      "leadingTrim": {
+        "type": "string",
+        "value": "NONE"
+      },
+      "lineHeight": {
+        "unit": {
+          "type": "string",
+          "value": "PIXELS"
+        },
+        "value": {
+          "type": "number",
+          "value": 22
+        }
+      },
+      "textDecoration": {
+        "type": "string",
+        "value": "NONE"
+      },
+      "fontSize": {
+        "type": "number",
+        "value": 20
+      },
+      "type": "TEXT",
+      "name": "Titlle",
+      "fontName": {
+        "family": {
+          "type": "string",
+          "value": "Poppins"
+        },
+        "style": {
+          "type": "string",
+          "value": "SemiBold"
+        }
+      },
+      "letterSpacing": {
+        "unit": {
+          "type": "string",
+          "value": "PERCENT"
+        },
+        "value": {
+          "type": "number",
+          "value": 0
+        }
+      }
+    },
+    {
+      "remote": {
+        "type": "boolean",
+        "value": false
+      },
+      "description": {
+        "type": "string",
+        "value": ""
+      },
+      "textCase": {
+        "type": "string",
+        "value": "TITLE"
+      },
+      "hangingList": {
+        "type": "boolean",
+        "value": false
+      },
+      "hangingPunctuation": {
+        "type": "boolean",
+        "value": false
+      },
+      "listSpacing": {
+        "type": "number",
+        "value": 0
+      },
+      "paragraphSpacing": {
+        "type": "number",
+        "value": 0
+      },
+      "paragraphIndent": {
+        "type": "number",
+        "value": 0
+      },
+      "leadingTrim": {
+        "type": "string",
+        "value": "NONE"
+      },
+      "lineHeight": {
+        "unit": {
+          "type": "string",
+          "value": "AUTO"
+        }
+      },
+      "textDecoration": {
+        "type": "string",
+        "value": "NONE"
+      },
+      "fontSize": {
+        "type": "number",
+        "value": 15
+      },
+      "type": "TEXT",
+      "name": "Subtitle",
+      "fontName": {
+        "family": {
+          "type": "string",
+          "value": "Poppins"
+        },
+        "style": {
+          "type": "string",
+          "value": "Medium"
+        }
+      },
+      "letterSpacing": {
+        "unit": {
+          "type": "string",
+          "value": "PERCENT"
+        },
+        "value": {
+          "type": "number",
+          "value": 0
+        }
+      }
+    },
+    {
+      "remote": {
+        "type": "boolean",
+        "value": false
+      },
+      "description": {
+        "type": "string",
+        "value": ""
+      },
+      "textCase": {
+        "type": "string",
+        "value": "ORIGINAL"
+      },
+      "hangingList": {
+        "type": "boolean",
+        "value": false
+      },
+      "hangingPunctuation": {
+        "type": "boolean",
+        "value": false
+      },
+      "listSpacing": {
+        "type": "number",
+        "value": 0
+      },
+      "paragraphSpacing": {
+        "type": "number",
+        "value": 0
+      },
+      "paragraphIndent": {
+        "type": "number",
+        "value": 0
+      },
+      "leadingTrim": {
+        "type": "string",
+        "value": "NONE"
+      },
+      "lineHeight": {
+        "unit": {
+          "type": "string",
+          "value": "AUTO"
+        }
+      },
+      "textDecoration": {
+        "type": "string",
+        "value": "NONE"
+      },
+      "fontSize": {
+        "type": "number",
+        "value": 14
+      },
+      "type": "TEXT",
+      "name": "Subtext",
+      "fontName": {
+        "family": {
+          "type": "string",
+          "value": "League Spartan"
+        },
+        "style": {
+          "type": "string",
+          "value": "Regular"
+        }
+      },
+      "letterSpacing": {
+        "unit": {
+          "type": "string",
+          "value": "PERCENT"
+        },
+        "value": {
+          "type": "number",
+          "value": 0
+        }
+      }
+    }
+  ],
+  "effectStyles": [],
+  "paintStyles": [
+    {
+      "name": "Dark mode Green Black",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0.0117647061124444,
+            "g": 0.07450980693101883,
+            "b": 0.0784313753247261
+          }
+        }
+      ]
+    },
+    {
+      "name": "Background dark mode and letters",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0.019607843831181526,
+            "g": 0.13333334028720856,
+            "b": 0.1411764770746231
+          }
+        }
+      ]
+    },
+    {
+      "name": "Letters and Icons",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0.03529411926865578,
+            "g": 0.1882352977991104,
+            "b": 0.1882352977991104
+          }
+        }
+      ]
+    },
+    {
+      "name": "Dark Mode Green bar",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0.054901961237192154,
+            "g": 0.24313725531101227,
+            "b": 0.24313725531101227
+          }
+        }
+      ]
+    },
+    {
+      "name": "Main Green",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0,
+            "g": 0.8166666626930237,
+            "b": 0.6206666827201843
+          }
+        }
+      ]
+    },
+    {
+      "name": "Light Green",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0.8745098114013672,
+            "g": 0.9686274528503418,
+            "b": 0.886274516582489
+          }
+        }
+      ]
+    },
+    {
+      "name": "Background Green White and Letters",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0.9458333253860474,
+            "g": 1,
+            "b": 0.9512500166893005
+          }
+        }
+      ]
+    },
+    {
+      "name": "Light Blue button",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0.42737847566604614,
+            "g": 0.7129923105239868,
+            "b": 0.9958333373069763
+          }
+        }
+      ]
+    },
+    {
+      "name": "Blue Button",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0.19607843458652496,
+            "g": 0.6000000238418579,
+            "b": 1
+          }
+        }
+      ]
+    },
+    {
+      "name": "Ocean Blue Button",
+      "paints": [
+        {
+          "type": "SOLID",
+          "blendMode": {
+            "type": "string",
+            "value": "NORMAL"
+          },
+          "opacity": {
+            "type": "number",
+            "value": 1
+          },
+          "visible": {
+            "type": "boolean",
+            "value": true
+          },
+          "color": {
+            "type": "rgb",
+            "r": 0,
+            "g": 0.40784314274787903,
+            "b": 1
+          }
+        }
+      ]
+    }
+  ],
+  "gridStyles": []
+}
