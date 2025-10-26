@@ -1,55 +1,73 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings, LogOut, Bell, Wallet, ShoppingBag, Car, HomeIcon, Layers } from "lucide-react";
+import { Settings, LogOut, Bell, Wallet, ShoppingBag, Car, HomeIcon, Layers, Plus } from "lucide-react";
 import api from "../api/axiosClient";
 import NavBar from "../components/NavBar";
+import QuickTransactionForm from "../components/QuickTransactionForm";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [selectedRange, setSelectedRange] = useState("Monthly");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    api.get("/summary").then((res) => setSummary(res.data));
+  const loadSummary = useCallback(async () => {
+    try {
+      const res = await api.get("/summary");
+      setSummary(res.data);
+    } catch (error) {
+      console.error("Error fetching summary", error);
+    }
+  }, []);
+
+  const loadTransactions = useCallback(async () => {
+    try {
+      const [expensesRes, incomesRes] = await Promise.all([
+        api.get("/expenses?pageSize=5"),
+        api.get("/incomes?pageSize=5"),
+      ]);
+      const expenses =
+        expensesRes.data.items?.map((item) => ({
+          id: `expense-${item.id}`,
+          type: "expense",
+          amount: Number(item.amount) * -1,
+          description: item.description || item.category?.name || "Expense",
+          date: item.date,
+          category: item.category?.name || "Expense",
+        })) || [];
+      const incomes =
+        incomesRes.data.items?.map((item) => ({
+          id: `income-${item.id}`,
+          type: "income",
+          amount: Number(item.amount),
+          description: item.description || item.category?.name || "Income",
+          date: item.date,
+          category: item.category?.name || "Income",
+        })) || [];
+      const merged = [...expenses, ...incomes].sort(
+        (a, b) => new Date(b.date) - new Date(a.date),
+      );
+      setTransactions(merged.slice(0, 5));
+    } catch (error) {
+      console.error("Error fetching transactions", error);
+    }
   }, []);
 
   useEffect(() => {
-    async function loadTransactions() {
-      try {
-        const [expensesRes, incomesRes] = await Promise.all([
-          api.get("/expenses?pageSize=5"),
-          api.get("/incomes?pageSize=5"),
-        ]);
-        const expenses =
-          expensesRes.data.items?.map((item) => ({
-            id: `expense-${item.id}`,
-            type: "expense",
-            amount: Number(item.amount) * -1,
-            description: item.description || item.category?.name || "Expense",
-            date: item.date,
-            category: item.category?.name || "Expense",
-          })) || [];
-        const incomes =
-          incomesRes.data.items?.map((item) => ({
-            id: `income-${item.id}`,
-            type: "income",
-            amount: Number(item.amount),
-            description: item.description || item.category?.name || "Income",
-            date: item.date,
-            category: item.category?.name || "Income",
-          })) || [];
-        const merged = [...expenses, ...incomes].sort(
-          (a, b) => new Date(b.date) - new Date(a.date),
-        );
-        setTransactions(merged.slice(0, 5));
-      } catch (error) {
-        console.error("Error fetching transactions", error);
-      }
-    }
+    loadSummary();
+  }, [loadSummary]);
+
+  useEffect(() => {
     loadTransactions();
-  }, []);
+  }, [loadTransactions]);
+
+  const handleQuickAddSuccess = useCallback(() => {
+    loadSummary();
+    loadTransactions();
+    setShowQuickAdd(false);
+  }, [loadSummary, loadTransactions]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -147,6 +165,13 @@ export default function Dashboard() {
             <p className="text-xs text-text-muted">Good Morning</p>
           </div>
           <div className="flex items-center gap-3">
+            <button
+              onClick={() => setShowQuickAdd(true)}
+              className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
+              title="Agregar movimiento"
+            >
+              <Plus size={18} />
+            </button>
             <button
               onClick={() => setMenuOpen((prev) => !prev)}
               className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
@@ -353,6 +378,18 @@ export default function Dashboard() {
           </div>
         </section>
       </div>
+
+      {showQuickAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-darkest/80 backdrop-blur">
+          <div className="w-full max-w-md px-5">
+            <QuickTransactionForm
+              variant="modal"
+              onSuccess={handleQuickAddSuccess}
+              onCancel={() => setShowQuickAdd(false)}
+            />
+          </div>
+        </div>
+      )}
 
       <NavBar />
     </div>
