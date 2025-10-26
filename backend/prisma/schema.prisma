@@ -53,6 +53,7 @@ model Expense {
   entityExpenseId Int?
   sharePercentage Float?
   isPayer         Boolean      @default(false)
+  isSettled       Boolean      @default(true)
 }
 
 model Category {

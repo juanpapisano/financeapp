@@ -25,6 +25,8 @@ export const expenseCreateSchema = z.object({
   date: z.coerce.date(),
   categoryId: z.coerce.number().int().positive().optional(),
   entityId: z.coerce.number().int().positive().optional(),
+  isSettled: z.coerce.boolean().default(true),
+  paidByUserId: z.coerce.number().int().positive().optional(),
 });
 
 const memberShareSchema = z.object({

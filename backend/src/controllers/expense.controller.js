@@ -28,6 +28,7 @@ function mapEntityExpenseResponse(entityExpense, userId) {
           ? null
           : Number(expense.sharePercentage.toFixed(2)),
       isPayer: expense.isPayer,
+      isSettled: expense.isSettled,
       isCurrentUser: expense.user.id === userId,
     })),
     total: totalAmount,
@@ -36,11 +37,21 @@ function mapEntityExpenseResponse(entityExpense, userId) {
 
 export const createExpense = async (req, res, next) => {
   try {
-    let { amount, description, date, categoryId, entityId } = req.body;
+    let {
+      amount,
+      description,
+      date,
+      categoryId,
+      entityId,
+      isSettled = true,
+      paidByUserId,
+    } = req.body;
 
     // Convertir a número si existe
-    categoryId = categoryId ? Number(categoryId) : null;
-    entityId = entityId ? Number(entityId) : null;
+    categoryId = typeof categoryId === 'number' ? categoryId : null;
+    entityId = typeof entityId === 'number' ? entityId : null;
+    const settled = typeof isSettled === 'boolean' ? isSettled : Boolean(isSettled);
+    const payerOverride = typeof paidByUserId === 'number' ? paidByUserId : null;
 
     if (categoryId) {
       const category = await prisma.category.findUnique({ where: { id: categoryId } });
@@ -63,6 +74,7 @@ export const createExpense = async (req, res, next) => {
           date,
           userId: req.userId,
           categoryId: categoryId ?? null,
+          isSettled: settled,
         },
         include: {
           category: true,
@@ -86,9 +98,20 @@ export const createExpense = async (req, res, next) => {
       return res.status(404).json({ message: 'Entidad no encontrada' });
     }
 
-    const isMember = entity.members.some((member) => member.userId === req.userId);
-    if (!isMember && entity.createdById !== req.userId) {
+    const memberIds = new Set(entity.members.map((member) => member.userId));
+    const payerUserId = payerOverride ?? req.userId;
+
+    const isMember = memberIds.has(req.userId) || entity.createdById === req.userId;
+    if (!isMember) {
       return res.status(403).json({ message: 'No pertenecés a esta entidad' });
+    }
+
+    if (entity.members.length === 0) {
+      return res.status(400).json({ message: 'La entidad no tiene miembros para dividir gastos' });
+    }
+
+    if (!memberIds.has(payerUserId)) {
+      return res.status(400).json({ message: 'El pagador debe ser miembro de la entidad' });
     }
 
     const totalShare = entity.members.reduce(
@@ -120,11 +143,12 @@ export const createExpense = async (req, res, next) => {
           amount,
           description: description ?? null,
           date,
-          userId: req.userId,
+          userId: payerUserId,
           categoryId: categoryId ?? null,
           entityExpenseId: sharedExpense.id,
           sharePercentage: null,
           isPayer: true,
+          isSettled: settled,
         },
       });
 
@@ -132,6 +156,7 @@ export const createExpense = async (req, res, next) => {
       await Promise.all(
         entity.members.map((member, index) => {
           const percentage = Number(member.share);
+          const isMemberPayer = member.userId === payerUserId;
           let memberAmount = Number(((amount * percentage) / 100).toFixed(2));
 
           if (index === entity.members.length - 1) {
@@ -154,7 +179,8 @@ export const createExpense = async (req, res, next) => {
               categoryId: categoryId ?? null,
               entityExpenseId: sharedExpense.id,
               sharePercentage: percentage,
-              isPayer: member.userId === req.userId,
+              isPayer: isMemberPayer,
+              isSettled: isMemberPayer && settled,
             },
           });
         }),
