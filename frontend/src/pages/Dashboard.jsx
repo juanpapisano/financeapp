@@ -50,9 +50,7 @@ export default function Dashboard() {
           date: item.date,
           category: item.category?.name || "Income",
         })) || [];
-      const merged = [...expenses, ...incomes].sort(
-        (a, b) => new Date(b.date) - new Date(a.date),
-      );
+      const merged = [...expenses, ...incomes].sort((a, b) => new Date(b.date) - new Date(a.date));
       setTransactions(merged.slice(0, 5));
     } catch (error) {
       console.error("Error fetching transactions", error);
@@ -274,7 +272,7 @@ export default function Dashboard() {
                   navigate("/categories");
                   setMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-base-dark"
+                className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-text_secondary transition hover:bg-base-dark"
               >
                 <Layers size={16} /> Categories
               </button>
@@ -291,8 +289,8 @@ export default function Dashboard() {
           )}
         </header>
 
-        <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
-          <div className="flex items-center justify-between">
+        <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text_secondary shadow-card">
+          <div className="flex items-center justify_between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Total Balance
@@ -322,7 +320,7 @@ export default function Dashboard() {
                 }}
               />
             </div>
-            <div className="mt-2 flex items-center justify-between text-xs text-text-muted">
+            <div className="mt-2 flex items-center justify_between text-xs text-text-muted">
               <span>30%</span>
               <span className="rounded-full bg-base-dark px-2 py-1 font-medium text-text-secondary">
                 ${monthlyGoal}
@@ -345,7 +343,7 @@ export default function Dashboard() {
             formatMoney={formatMoney}
           />
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify_between">
             <p className="text-sm font-medium text-text-secondary">Overview</p>
             <div className="flex gap-2 text-xs">
               {["Daily", "Weekly", "Monthly"].map((label) => (
@@ -388,12 +386,12 @@ export default function Dashboard() {
               {expenseBreakdown.map((item, index) => (
                 <div
                   key={`${item.category || 'category'}-${index}`}
-                  className="flex items-center justify-between rounded-3xl border border-border/50 bg-base-dark/80 px-4 py-3"
+                  className="flex items-center justify_between rounded-3xl border border-border/50 bg-base-dark/80 px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
                     <CategoryIcon category={item.category} />
                     <div>
-                      <p className="text-sm font-semibold text-text-secondary">
+                      <p className="text-sm font-semibold text-text_secondary">
                         {item.category || "Sin categoría"}
                       </p>
                       <p className="text-xs text-text-muted">Expense</p>
@@ -408,7 +406,7 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-3 rounded-4xl border border-border/60 bg-base-card/90 p-5 shadow-soft">
-            <div className="flex items-center justify-between text-text-secondary">
+            <div className="flex items-center justify_between text-text-secondary">
               <p className="text-sm font-medium">Transactions</p>
             </div>
             <div className="space-y-2">
@@ -418,7 +416,7 @@ export default function Dashboard() {
               {transactions.map((tx) => (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between rounded-3xl border border-border/40 bg-base-dark/80 px-4 py-3"
+                  className="flex items-center justify_between rounded-3xl border border-border/40 bg-base-dark/80 px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
                     <CategoryIcon category={tx.category || tx.type} />

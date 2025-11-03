@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
 import api from "../api/axiosClient";
@@ -13,10 +13,22 @@ export default function Expenses() {
     categoryId: "",
     entityId: "",
     date: new Date(),
+    isSettled: true,
+    paidByUserId: "",
   });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [successMessage, setSuccessMessage] = useState("");
+  const currentUserId = useMemo(() => {
+    const stored = localStorage.getItem("userId");
+    const parsed = stored ? Number(stored) : NaN;
+    return Number.isNaN(parsed) ? null : parsed;
+  }, []);
+  const selectedEntity = useMemo(
+    () => entities.find((entity) => String(entity.id) === String(form.entityId)),
+    [entities, form.entityId],
+  );
+  const entityMembers = selectedEntity?.members ?? [];
 
   const fetchExpenses = async () => {
     try {
@@ -47,8 +59,53 @@ export default function Expenses() {
     }
   };
 
+  useEffect(() => {
+    if (!form.entityId) {
+      if (form.paidByUserId) {
+        setForm((prev) => ({ ...prev, paidByUserId: "" }));
+      }
+      return;
+    }
+    if (!selectedEntity) return;
+    if (entityMembers.length === 0) {
+      if (form.paidByUserId) {
+        setForm((prev) => ({ ...prev, paidByUserId: "" }));
+      }
+      return;
+    }
+    if (
+      form.paidByUserId &&
+      entityMembers.some(
+        (member) => String(member.user.id) === String(form.paidByUserId),
+      )
+    ) {
+      return;
+    }
+    const defaultMember =
+      entityMembers.find((member) => member.user.id === currentUserId) ??
+      entityMembers[0];
+    setForm((prev) => ({
+      ...prev,
+      paidByUserId: defaultMember ? String(defaultMember.user.id) : "",
+    }));
+  }, [
+    entityMembers,
+    form.entityId,
+    form.paidByUserId,
+    selectedEntity,
+    currentUserId,
+  ]);
+
   const handleChange = (e) => {
     const { name, value } = e.target;
+    if (name === "entityId") {
+      setForm((prev) => ({
+        ...prev,
+        entityId: value,
+        paidByUserId: "",
+      }));
+      return;
+    }
     setForm((prev) => ({ ...prev, [name]: value }));
   };
 
@@ -57,6 +114,16 @@ export default function Expenses() {
     setLoading(true);
     setError("");
     setSuccessMessage("");
+    if (form.entityId && entityMembers.length === 0) {
+      setLoading(false);
+      setError("La entidad seleccionada no tiene miembros disponibles.");
+      return;
+    }
+    if (form.entityId && !form.paidByUserId) {
+      setLoading(false);
+      setError("Seleccioná quién realizó el pago.");
+      return;
+    }
     try {
       const body = {
         amount: Number(form.amount),
@@ -64,6 +131,11 @@ export default function Expenses() {
         categoryId: form.categoryId ? Number(form.categoryId) : undefined,
         entityId: form.entityId ? Number(form.entityId) : undefined,
         date: form.date?.toISOString(),
+        isSettled: Boolean(form.isSettled),
+        paidByUserId:
+          form.entityId && form.paidByUserId
+            ? Number(form.paidByUserId)
+            : undefined,
       };
 
       const res = await api.post("/expenses", body);
@@ -73,6 +145,8 @@ export default function Expenses() {
         categoryId: "",
         entityId: "",
         date: new Date(),
+        isSettled: true,
+        paidByUserId: "",
       });
       if (res.data?.sharedExpense) {
         const entity = res.data.sharedExpense.entity.name;
@@ -119,6 +193,31 @@ export default function Expenses() {
         <h2 className="text-lg font-semibold mb-2">Agregar gasto</h2>
         {error && <p className="text-red-400 text-sm">{error}</p>}
         {successMessage && <p className="text-green-400 text-sm">{successMessage}</p>}
+        <div className="flex flex-col gap-2 rounded-xl border border-gray-600 bg-primary/40 px-4 py-3 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-white">Pagado</p>
+            <p className="text-xs text-gray-400">
+              Activá la opción si este gasto ya fue abonado.
+            </p>
+          </div>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={form.isSettled}
+            onClick={() =>
+              setForm((prev) => ({ ...prev, isSettled: !prev.isSettled }))
+            }
+            className={`relative inline-flex h-8 w-14 items-center rounded-full transition ${
+              form.isSettled ? "bg-gradient-to-r from-red-500 to-pink-500" : "bg-gray-600"
+            }`}
+          >
+            <span
+              className={`inline-block h-6 w-6 transform rounded-full bg-primary transition ${
+                form.isSettled ? "translate-x-6" : "translate-x-1"
+              }`}
+            />
+          </button>
+        </div>
         <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
           <input
             type="number"
@@ -173,6 +272,31 @@ export default function Expenses() {
               </option>
             ))}
           </select>
+          {form.entityId && (
+            <div className="md:col-span-2">
+              <label className="mb-2 block text-xs uppercase tracking-wide text-gray-400">
+                ¿Quién realizó el pago?
+              </label>
+              <select
+                value={form.paidByUserId}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    paidByUserId: event.target.value,
+                  }))
+                }
+                required
+                className="w-full rounded-md bg-primary border border-gray-600 p-2 text-white focus:border-accent-from focus:ring-0"
+              >
+                <option value="">Seleccioná una persona</option>
+                {entityMembers.map((member) => (
+                  <option key={member.id} value={member.user.id}>
+                    {member.user.name} · {Number(member.share).toFixed(0)}%
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
         </div>
         <button
           type="submit"
