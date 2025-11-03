@@ -1,55 +1,157 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings, LogOut, Bell, Wallet, ShoppingBag, Car, HomeIcon, Layers } from "lucide-react";
+import { Settings, LogOut, Bell, Wallet, ShoppingBag, Car, HomeIcon, Layers, Plus } from "lucide-react";
 import api from "../api/axiosClient";
 import NavBar from "../components/NavBar";
+import EntityCarousel from "../components/EntityCarousel";
+import QuickTransactionForm from "../components/QuickTransactionForm";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [selectedRange, setSelectedRange] = useState("Monthly");
   const [menuOpen, setMenuOpen] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [entitySummaries, setEntitySummaries] = useState([]);
+  const [entitiesLoading, setEntitiesLoading] = useState(true);
+  const [entitiesError, setEntitiesError] = useState("");
   const navigate = useNavigate();
 
-  useEffect(() => {
-    api.get("/summary").then((res) => setSummary(res.data));
+  const loadSummary = useCallback(async () => {
+    try {
+      const res = await api.get("/summary");
+      setSummary(res.data);
+    } catch (error) {
+      console.error("Error fetching summary", error);
+    }
+  }, []);
+
+  const loadTransactions = useCallback(async () => {
+    try {
+      const [expensesRes, incomesRes] = await Promise.all([
+        api.get("/expenses?pageSize=5"),
+        api.get("/incomes?pageSize=5"),
+      ]);
+      const expenses =
+        expensesRes.data.items?.map((item) => ({
+          id: `expense-${item.id}`,
+          type: "expense",
+          amount: Number(item.amount) * -1,
+          description: item.description || item.category?.name || "Expense",
+          date: item.date,
+          category: item.category?.name || "Expense",
+        })) || [];
+      const incomes =
+        incomesRes.data.items?.map((item) => ({
+          id: `income-${item.id}`,
+          type: "income",
+          amount: Number(item.amount),
+          description: item.description || item.category?.name || "Income",
+          date: item.date,
+          category: item.category?.name || "Income",
+        })) || [];
+      const merged = [...expenses, ...incomes].sort(
+        (a, b) => new Date(b.date) - new Date(a.date),
+      );
+      setTransactions(merged.slice(0, 5));
+    } catch (error) {
+      console.error("Error fetching transactions", error);
+    }
+  }, []);
+
+  const loadEntitySummaries = useCallback(async () => {
+    setEntitiesLoading(true);
+    setEntitiesError("");
+    try {
+      const entitiesRes = await api.get("/entities");
+      const entitiesData = entitiesRes.data || [];
+      if (entitiesData.length === 0) {
+        setEntitySummaries([]);
+        setEntitiesLoading(false);
+        return;
+      }
+
+      const expensesResponses = await Promise.all(
+        entitiesData.map((entity) => api.get(`/entities/${entity.id}/expenses`)),
+      );
+
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const summaries = entitiesData.map((entity, index) => {
+        const expenses = expensesResponses[index].data || [];
+        const monthlyExpenses = expenses.filter((expense) => {
+          const expenseDate = new Date(expense.date);
+          return expenseDate >= startOfMonth && expenseDate <= endOfMonth;
+        });
+
+        const monthlyTotal = monthlyExpenses.reduce(
+          (sum, expense) => sum + Number(expense.amount || 0),
+          0,
+        );
+
+        const debtMap = new Map();
+        monthlyExpenses.forEach((expense) => {
+          (expense.personalExpenses || []).forEach((personal) => {
+            if (!personal.isPayer && !personal.isSettled) {
+              const key = personal.user.id;
+              const current = debtMap.get(key);
+              const amount = Number(personal.amount || 0);
+              debtMap.set(key, {
+                userId: personal.user.id,
+                name: personal.user.name,
+                amount: (current?.amount || 0) + amount,
+              });
+            }
+          });
+        });
+
+        const debtEntries = Array.from(debtMap.values());
+        const debts = debtEntries
+          .filter((item) => item.amount > 0)
+          .sort((a, b) => b.amount - a.amount);
+        const pendingTotal = debts.reduce((sum, item) => sum + item.amount, 0);
+
+        return {
+          id: entity.id,
+          name: entity.name,
+          membersCount: entity.members?.length || 0,
+          createdAt: entity.createdAt,
+          monthlyTotal,
+          debts,
+          pendingTotal,
+        };
+      });
+
+      setEntitySummaries(summaries);
+    } catch (error) {
+      console.error("Error fetching entities summary", error);
+      setEntitiesError("No se pudo cargar la información de las entidades.");
+      setEntitySummaries([]);
+    } finally {
+      setEntitiesLoading(false);
+    }
   }, []);
 
   useEffect(() => {
-    async function loadTransactions() {
-      try {
-        const [expensesRes, incomesRes] = await Promise.all([
-          api.get("/expenses?pageSize=5"),
-          api.get("/incomes?pageSize=5"),
-        ]);
-        const expenses =
-          expensesRes.data.items?.map((item) => ({
-            id: `expense-${item.id}`,
-            type: "expense",
-            amount: Number(item.amount) * -1,
-            description: item.description || item.category?.name || "Expense",
-            date: item.date,
-            category: item.category?.name || "Expense",
-          })) || [];
-        const incomes =
-          incomesRes.data.items?.map((item) => ({
-            id: `income-${item.id}`,
-            type: "income",
-            amount: Number(item.amount),
-            description: item.description || item.category?.name || "Income",
-            date: item.date,
-            category: item.category?.name || "Income",
-          })) || [];
-        const merged = [...expenses, ...incomes].sort(
-          (a, b) => new Date(b.date) - new Date(a.date),
-        );
-        setTransactions(merged.slice(0, 5));
-      } catch (error) {
-        console.error("Error fetching transactions", error);
-      }
-    }
+    loadSummary();
+  }, [loadSummary]);
+
+  useEffect(() => {
     loadTransactions();
-  }, []);
+  }, [loadTransactions]);
+
+  useEffect(() => {
+    loadEntitySummaries();
+  }, [loadEntitySummaries]);
+
+  const handleQuickAddSuccess = useCallback(() => {
+    loadSummary();
+    loadTransactions();
+    loadEntitySummaries();
+    setShowQuickAdd(false);
+  }, [loadSummary, loadTransactions, loadEntitySummaries]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -148,6 +250,13 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <button
+              onClick={() => setShowQuickAdd(true)}
+              className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
+              title="Agregar movimiento"
+            >
+              <Plus size={18} />
+            </button>
+            <button
               onClick={() => setMenuOpen((prev) => !prev)}
               className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
               title="Settings"
@@ -229,27 +338,12 @@ export default function Dashboard() {
         </section>
 
         <section className="mt-6 space-y-4">
-          <div className="rounded-[36px] border border-border/60 bg-brand/20 p-5 text-text-secondary shadow-soft">
-            <div className="flex items-start justify-between">
-              <div className="flex flex-col items-start gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand/30 text-brand">
-                  <HomeIcon size={24} />
-                </div>
-                <p className="text-sm font-semibold">Savings on Goals</p>
-                <p className="text-xs text-text-muted">Keep saving for your dreams</p>
-              </div>
-              <div className="space-y-3 text-right text-sm">
-                <div>
-                  <p className="text-text-muted">Revenue Last Week</p>
-                  <p className="font-semibold text-text-secondary">${formatMoney(summary?.totalIncome)}</p>
-                </div>
-                <div>
-                  <p className="text-text-muted">Food Last Week</p>
-                  <p className="font-semibold text-sky-light">-${formatMoney(summary?.totalExpense * 0.2)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <EntityCarousel
+            items={entitySummaries}
+            loading={entitiesLoading}
+            error={entitiesError}
+            formatMoney={formatMoney}
+          />
 
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-text-secondary">Overview</p>
@@ -353,6 +447,18 @@ export default function Dashboard() {
           </div>
         </section>
       </div>
+
+      {showQuickAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-darkest/80 backdrop-blur">
+          <div className="w-full max-w-md px-5">
+            <QuickTransactionForm
+              onSuccess={handleQuickAddSuccess}
+              onCancel={() => setShowQuickAdd(false)}
+              variant="modal"
+            />
+          </div>
+        </div>
+      )}
 
       <NavBar />
     </div>

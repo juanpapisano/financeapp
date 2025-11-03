@@ -13,11 +13,13 @@ Definí un archivo `.env` en `backend/` con las claves necesarias:
 PORT=3000
 DATABASE_URL="postgresql://admin:admin123@localhost:5432/finance?schema=public"
 JWT_SECRET="cambia-esto-por-un-secreto-seguro"
+GOOGLE_CLIENT_ID="tu-client-id.apps.googleusercontent.com"
 ```
 
 - `PORT`: puerto donde escuchará la API (por defecto 3000).
 - `DATABASE_URL`: cadena de conexión para Prisma; debe apuntar a la base Postgres que uses localmente o en producción.
 - `JWT_SECRET`: secreto usado para firmar y validar los tokens JWT; elegí un valor largo y aleatorio.
+- `GOOGLE_CLIENT_ID`: Client ID de OAuth 2.0 generado en Google Cloud Console para validar el inicio de sesión social.
 
 Si se agregan nuevas variables, documentalas en esta misma sección.
 
@@ -38,4 +40,3 @@ Cada vez que modifiques `schema.prisma`, recordá regenerar el cliente.
 1. Asegurate de que Postgres esté corriendo (`docker compose up db -d` desde la raíz, si usás el compose provisto).
 2. Configurá `.env` con la URL de base y el secreto JWT.
 3. Ejecutá `npm run dev` y consumí la API desde el frontend (`frontend/`) o herramientas como Postman.
-

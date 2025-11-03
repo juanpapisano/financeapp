@@ -11,6 +11,10 @@ export const loginSchema = z.object({
   password: z.string().min(6),
 });
 
+export const googleSignInSchema = z.object({
+  credential: z.string().min(1, 'Token de Google requerido'),
+});
+
 // Conviene coercer number y date para aceptar strings del JSON
 export const incomeCreateSchema = z.object({
   amount: z.coerce.number().positive(),
