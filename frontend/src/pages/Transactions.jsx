@@ -1,8 +1,9 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Bell,
+  Plus,
   Wallet,
   ShoppingBag,
   HomeIcon,
@@ -12,6 +13,7 @@ import {
 } from "lucide-react";
 import api from "../api/axiosClient";
 import EmptyState from "../components/EmptyState";
+import QuickTransactionForm from "../components/QuickTransactionForm";
 
 const CATEGORY_ICON_MAP = {
   income: Wallet,
@@ -78,52 +80,62 @@ export default function Transactions() {
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    api.get("/summary").then((res) => setSummary(res.data));
-  }, []);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [expensesRes, incomesRes] = await Promise.all([
-          api.get("/expenses?pageSize=100"),
-          api.get("/incomes?pageSize=100"),
-        ]);
-
-        const expenses =
-          expensesRes.data.items?.map((item) => ({
-            id: `expense-${item.id}`,
-            type: "expense",
-            amount: -Math.abs(Number(item.amount)),
-            description: item.description || item.category?.name || "Gasto",
-            date: item.date,
-            category: item.category?.name || "Gasto",
-          })) || [];
-
-        const incomes =
-          incomesRes.data.items?.map((item) => ({
-            id: `income-${item.id}`,
-            type: "income",
-            amount: Math.abs(Number(item.amount)),
-            description: item.description || item.category?.name || "Ingreso",
-            date: item.date,
-            category: item.category?.name || "Ingreso",
-          })) || [];
-
-        const merged = [...expenses, ...incomes].sort(
-          (a, b) => new Date(b.date) - new Date(a.date),
-        );
-
-        setTransactions(merged);
-      } catch (error) {
-        console.error("Error loading transactions", error);
-      }
+  const loadSummary = useCallback(async () => {
+    try {
+      const res = await api.get("/summary");
+      setSummary(res.data);
+    } catch (error) {
+      console.error("Error loading summary", error);
     }
-
-    loadData();
   }, []);
+
+  const loadTransactions = useCallback(async () => {
+    try {
+      const [expensesRes, incomesRes] = await Promise.all([
+        api.get("/expenses?pageSize=100"),
+        api.get("/incomes?pageSize=100"),
+      ]);
+
+      const expenses =
+        expensesRes.data.items?.map((item) => ({
+          id: `expense-${item.id}`,
+          type: "expense",
+          amount: -Math.abs(Number(item.amount)),
+          description: item.description || item.category?.name || "Gasto",
+          date: item.date,
+          category: item.category?.name || "Gasto",
+        })) || [];
+
+      const incomes =
+        incomesRes.data.items?.map((item) => ({
+          id: `income-${item.id}`,
+          type: "income",
+          amount: Math.abs(Number(item.amount)),
+          description: item.description || item.category?.name || "Ingreso",
+          date: item.date,
+          category: item.category?.name || "Ingreso",
+        })) || [];
+
+      const merged = [...expenses, ...incomes].sort(
+        (a, b) => new Date(b.date) - new Date(a.date),
+      );
+
+      setTransactions(merged);
+    } catch (error) {
+      console.error("Error loading transactions", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
+
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
 
   const filteredTransactions = useMemo(() => {
     if (filter === "all") return transactions;
@@ -146,6 +158,12 @@ export default function Transactions() {
   const totalExpense = formatMoney(summary?.totalExpense);
   const balance = formatMoney(summary?.balance);
 
+  const handleQuickAddSuccess = useCallback(() => {
+    loadSummary();
+    loadTransactions();
+    setShowQuickAdd(false);
+  }, [loadSummary, loadTransactions]);
+
   return (
     <div className="relative min-h-screen bg-base-darkest text-text-primary">
       <div className="absolute inset-0 bg-gradient-hero opacity-40" />
@@ -160,12 +178,22 @@ export default function Transactions() {
             <ArrowLeft size={18} />
           </button>
           <h1 className="text-lg font-semibold text-text-secondary">Movimientos</h1>
-          <button
-            className="rounded-full border border-border/60 bg-base-card p-2 text-text-secondary"
-            title="Notificaciones"
-          >
-            <Bell size={18} />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowQuickAdd(true)}
+              className="rounded-full border border-border/60 bg-base-card p-2 text-text-secondary transition hover:border-brand"
+              title="Registrar movimiento"
+            >
+              <Plus size={18} />
+            </button>
+            <button
+              className="rounded-full border border-border/60 bg-base-card p-2 text-text-secondary"
+              title="Notificaciones"
+            >
+              <Bell size={18} />
+            </button>
+          </div>
         </header>
 
         <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
@@ -221,7 +249,9 @@ export default function Transactions() {
             <EmptyState
               icon={ReceiptText}
               title="Sin movimientos en este filtro"
-              description="Probá cambiar el tipo de movimiento para ver otras transacciones."
+              description="Probá cambiar el tipo de movimiento o cargá un ingreso/gasto nuevo."
+              actionLabel="Registrar movimiento"
+              onAction={() => setShowQuickAdd(true)}
               className="border-dashed border-border/60 bg-base-card/70"
             />
           ) : (
@@ -265,6 +295,18 @@ export default function Transactions() {
           )}
         </section>
       </div>
+
+      {showQuickAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-darkest/80 backdrop-blur">
+          <div className="w-full max-w-md px-5">
+            <QuickTransactionForm
+              variant="modal"
+              onSuccess={handleQuickAddSuccess}
+              onCancel={() => setShowQuickAdd(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
