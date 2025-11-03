@@ -17,7 +17,7 @@ dotenv.config();
 const allowedOrigins = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
-  "http://192.168.1.35:5173", // ejemplo: IP de tu PC en la red local
+  "http://192.168.1.41:5173", // ejemplo: IP de tu PC en la red local
   "http://172.31.208.1:5173", // otra compu de tu LAN, si sabés la IP
 ];
 

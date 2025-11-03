@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import api from "../api/axiosClient";
 import { useNavigate } from "react-router-dom";
 
@@ -8,12 +8,77 @@ export default function Login() {
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
+  const handleGoogleSuccess = useCallback(
+    async (response) => {
+      try {
+        if (!response?.credential) {
+          setError("No pudimos validar tu cuenta de Google.");
+          return;
+        }
+        const res = await api.post("/users/google", { credential: response.credential });
+        localStorage.setItem("token", res.data.token);
+        localStorage.setItem("userName", res.data.user.name);
+        localStorage.setItem("userEmail", res.data.user.email);
+        localStorage.setItem("userId", res.data.user.id);
+        navigate("/dashboard");
+      } catch (err) {
+        setError("No pudimos iniciar sesión con Google. Intentá nuevamente.");
+      }
+    },
+    [navigate],
+  );
+
   useEffect(() => {
     const token = localStorage.getItem("token");
     if (token) {
       navigate("/dashboard", { replace: true });
     }
   }, [navigate]);
+
+  useEffect(() => {
+    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+    if (!clientId) return;
+
+    const existingScript = document.getElementById("google-oauth");
+    if (existingScript) {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleSuccess,
+        });
+        window.google.accounts.id.renderButton(
+          document.getElementById("googleSignInDiv"),
+          { theme: "outline", size: "large", shape: "pill", text: "continue_with" },
+        );
+      }
+      return;
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://accounts.google.com/gsi/client";
+    script.async = true;
+    script.defer = true;
+    script.id = "google-oauth";
+    script.onload = () => {
+      if (window.google) {
+        window.google.accounts.id.initialize({
+          client_id: clientId,
+          callback: handleGoogleSuccess,
+        });
+        window.google.accounts.id.renderButton(
+          document.getElementById("googleSignInDiv"),
+          { theme: "outline", size: "large", shape: "pill", text: "continue_with" },
+        );
+      }
+    };
+    document.body.appendChild(script);
+
+    return () => {
+      if (script.parentNode) {
+        script.parentNode.removeChild(script);
+      }
+    };
+  }, [handleGoogleSuccess]);
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -99,6 +164,13 @@ export default function Login() {
               >
                 Sign Up
               </a>
+              <div className="relative flex items-center justify-center">
+                <span className="absolute inset-x-0 h-px bg-border" />
+                <span className="relative bg-base-card/95 px-3 text-[11px] uppercase tracking-wide text-text-muted">
+                  o continuá con
+                </span>
+              </div>
+              <div id="googleSignInDiv" className="flex justify-center" />
             </div>
           </form>
 

@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { Settings, LogOut, Bell, Wallet, ShoppingBag, Car, HomeIcon, Layers, Plus } from "lucide-react";
 import api from "../api/axiosClient";
 import NavBar from "../components/NavBar";
+import EntityCarousel from "../components/EntityCarousel";
 import QuickTransactionForm from "../components/QuickTransactionForm";
 
 export default function Dashboard() {
@@ -11,6 +12,9 @@ export default function Dashboard() {
   const [selectedRange, setSelectedRange] = useState("Monthly");
   const [menuOpen, setMenuOpen] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
+  const [entitySummaries, setEntitySummaries] = useState([]);
+  const [entitiesLoading, setEntitiesLoading] = useState(true);
+  const [entitiesError, setEntitiesError] = useState("");
   const navigate = useNavigate();
 
   const loadSummary = useCallback(async () => {
@@ -46,12 +50,85 @@ export default function Dashboard() {
           date: item.date,
           category: item.category?.name || "Income",
         })) || [];
-      const merged = [...expenses, ...incomes].sort(
-        (a, b) => new Date(b.date) - new Date(a.date),
-      );
+      const merged = [...expenses, ...incomes].sort((a, b) => new Date(b.date) - new Date(a.date));
       setTransactions(merged.slice(0, 5));
     } catch (error) {
       console.error("Error fetching transactions", error);
+    }
+  }, []);
+
+  const loadEntitySummaries = useCallback(async () => {
+    setEntitiesLoading(true);
+    setEntitiesError("");
+    try {
+      const entitiesRes = await api.get("/entities");
+      const entitiesData = entitiesRes.data || [];
+      if (entitiesData.length === 0) {
+        setEntitySummaries([]);
+        setEntitiesLoading(false);
+        return;
+      }
+
+      const expensesResponses = await Promise.all(
+        entitiesData.map((entity) => api.get(`/entities/${entity.id}/expenses`)),
+      );
+
+      const now = new Date();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0, 23, 59, 59, 999);
+
+      const summaries = entitiesData.map((entity, index) => {
+        const expenses = expensesResponses[index].data || [];
+        const monthlyExpenses = expenses.filter((expense) => {
+          const expenseDate = new Date(expense.date);
+          return expenseDate >= startOfMonth && expenseDate <= endOfMonth;
+        });
+
+        const monthlyTotal = monthlyExpenses.reduce(
+          (sum, expense) => sum + Number(expense.amount || 0),
+          0,
+        );
+
+        const debtMap = new Map();
+        monthlyExpenses.forEach((expense) => {
+          (expense.personalExpenses || []).forEach((personal) => {
+            if (!personal.isPayer && !personal.isSettled) {
+              const key = personal.user.id;
+              const current = debtMap.get(key);
+              const amount = Number(personal.amount || 0);
+              debtMap.set(key, {
+                userId: personal.user.id,
+                name: personal.user.name,
+                amount: (current?.amount || 0) + amount,
+              });
+            }
+          });
+        });
+
+        const debtEntries = Array.from(debtMap.values());
+        const debts = debtEntries
+          .filter((item) => item.amount > 0)
+          .sort((a, b) => b.amount - a.amount);
+        const pendingTotal = debts.reduce((sum, item) => sum + item.amount, 0);
+
+        return {
+          id: entity.id,
+          name: entity.name,
+          membersCount: entity.members?.length || 0,
+          createdAt: entity.createdAt,
+          monthlyTotal,
+          debts,
+          pendingTotal,
+        };
+      });
+
+      setEntitySummaries(summaries);
+    } catch (error) {
+      console.error("Error fetching entities summary", error);
+      setEntitiesError("No se pudo cargar la información de las entidades.");
+      setEntitySummaries([]);
+    } finally {
+      setEntitiesLoading(false);
     }
   }, []);
 
@@ -63,11 +140,16 @@ export default function Dashboard() {
     loadTransactions();
   }, [loadTransactions]);
 
+  useEffect(() => {
+    loadEntitySummaries();
+  }, [loadEntitySummaries]);
+
   const handleQuickAddSuccess = useCallback(() => {
     loadSummary();
     loadTransactions();
+    loadEntitySummaries();
     setShowQuickAdd(false);
-  }, [loadSummary, loadTransactions]);
+  }, [loadSummary, loadTransactions, loadEntitySummaries]);
 
   const handleLogout = () => {
     localStorage.removeItem("token");
@@ -190,7 +272,7 @@ export default function Dashboard() {
                   navigate("/categories");
                   setMenuOpen(false);
                 }}
-                className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-base-dark"
+                className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-text_secondary transition hover:bg-base-dark"
               >
                 <Layers size={16} /> Categories
               </button>
@@ -207,8 +289,8 @@ export default function Dashboard() {
           )}
         </header>
 
-        <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
-          <div className="flex items-center justify-between">
+        <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text_secondary shadow-card">
+          <div className="flex items-center justify_between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
                 Total Balance
@@ -238,7 +320,7 @@ export default function Dashboard() {
                 }}
               />
             </div>
-            <div className="mt-2 flex items-center justify-between text-xs text-text-muted">
+            <div className="mt-2 flex items-center justify_between text-xs text-text-muted">
               <span>30%</span>
               <span className="rounded-full bg-base-dark px-2 py-1 font-medium text-text-secondary">
                 ${monthlyGoal}
@@ -254,29 +336,14 @@ export default function Dashboard() {
         </section>
 
         <section className="mt-6 space-y-4">
-          <div className="rounded-[36px] border border-border/60 bg-brand/20 p-5 text-text-secondary shadow-soft">
-            <div className="flex items-start justify-between">
-              <div className="flex flex-col items-start gap-3">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-brand/30 text-brand">
-                  <HomeIcon size={24} />
-                </div>
-                <p className="text-sm font-semibold">Savings on Goals</p>
-                <p className="text-xs text-text-muted">Keep saving for your dreams</p>
-              </div>
-              <div className="space-y-3 text-right text-sm">
-                <div>
-                  <p className="text-text-muted">Revenue Last Week</p>
-                  <p className="font-semibold text-text-secondary">${formatMoney(summary?.totalIncome)}</p>
-                </div>
-                <div>
-                  <p className="text-text-muted">Food Last Week</p>
-                  <p className="font-semibold text-sky-light">-${formatMoney(summary?.totalExpense * 0.2)}</p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <EntityCarousel
+            items={entitySummaries}
+            loading={entitiesLoading}
+            error={entitiesError}
+            formatMoney={formatMoney}
+          />
 
-          <div className="flex items-center justify-between">
+          <div className="flex items-center justify_between">
             <p className="text-sm font-medium text-text-secondary">Overview</p>
             <div className="flex gap-2 text-xs">
               {["Daily", "Weekly", "Monthly"].map((label) => (
@@ -319,12 +386,12 @@ export default function Dashboard() {
               {expenseBreakdown.map((item, index) => (
                 <div
                   key={`${item.category || 'category'}-${index}`}
-                  className="flex items-center justify-between rounded-3xl border border-border/50 bg-base-dark/80 px-4 py-3"
+                  className="flex items-center justify_between rounded-3xl border border-border/50 bg-base-dark/80 px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
                     <CategoryIcon category={item.category} />
                     <div>
-                      <p className="text-sm font-semibold text-text-secondary">
+                      <p className="text-sm font-semibold text-text_secondary">
                         {item.category || "Sin categoría"}
                       </p>
                       <p className="text-xs text-text-muted">Expense</p>
@@ -339,7 +406,7 @@ export default function Dashboard() {
           </div>
 
           <div className="space-y-3 rounded-4xl border border-border/60 bg-base-card/90 p-5 shadow-soft">
-            <div className="flex items-center justify-between text-text-secondary">
+            <div className="flex items-center justify_between text-text-secondary">
               <p className="text-sm font-medium">Transactions</p>
             </div>
             <div className="space-y-2">
@@ -349,7 +416,7 @@ export default function Dashboard() {
               {transactions.map((tx) => (
                 <div
                   key={tx.id}
-                  className="flex items-center justify-between rounded-3xl border border-border/40 bg-base-dark/80 px-4 py-3"
+                  className="flex items-center justify_between rounded-3xl border border-border/40 bg-base-dark/80 px-4 py-3"
                 >
                   <div className="flex items-center gap-3">
                     <CategoryIcon category={tx.category || tx.type} />
@@ -383,9 +450,9 @@ export default function Dashboard() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-darkest/80 backdrop-blur">
           <div className="w-full max-w-md px-5">
             <QuickTransactionForm
-              variant="modal"
               onSuccess={handleQuickAddSuccess}
               onCancel={() => setShowQuickAdd(false)}
+              variant="modal"
             />
           </div>
         </div>
