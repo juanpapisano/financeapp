@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
+import DateInput from "../components/DateInput";
 import {
   ResponsiveContainer,
   BarChart,
@@ -499,23 +500,25 @@ export default function Analysis() {
               </div>
               <div className="grid grid-cols-2 gap-3 text-xs text-text-muted">
                 <div className="space-y-2">
-                  <label className="uppercase tracking-wide">From</label>
-                  <input
-                    type="date"
-                    name="from"
+                  <label className="uppercase tracking-wide">Desde</label>
+                  <DateInput
                     value={searchForm.from}
-                    onChange={handleSearchChange}
-                    className="w-full rounded-3xl border border-border bg-base-dark px-4 py-3 text-sm text-text-primary focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                    onChange={(event) => handleSearchChange(event)}
+                    name="from"
+                    placeholder="DD/MM/AAAA"
+                    className="mt-0"
+                    inputClassName="bg-base-dark"
                   />
                 </div>
                 <div className="space-y-2">
-                  <label className="uppercase tracking-wide">To</label>
-                  <input
-                    type="date"
-                    name="to"
+                  <label className="uppercase tracking-wide">Hasta</label>
+                  <DateInput
                     value={searchForm.to}
-                    onChange={handleSearchChange}
-                    className="w-full rounded-3xl border border-border bg-base-dark px-4 py-3 text-sm text-text-primary focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                    onChange={(event) => handleSearchChange(event)}
+                    name="to"
+                    placeholder="DD/MM/AAAA"
+                    className="mt-0"
+                    inputClassName="bg-base-dark"
                   />
                 </div>
               </div>

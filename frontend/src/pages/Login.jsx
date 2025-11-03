@@ -1,10 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
-import api from "../api/axiosClient";
 import { useNavigate } from "react-router-dom";
+import { Eye, EyeOff } from "lucide-react";
+import api from "../api/axiosClient";
 
 export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState("");
   const navigate = useNavigate();
 
@@ -30,27 +32,31 @@ export default function Login() {
 
   useEffect(() => {
     const token = localStorage.getItem("token");
-    if (token) {
-      navigate("/dashboard", { replace: true });
-    }
+    if (token) navigate("/dashboard", { replace: true });
   }, [navigate]);
 
+  const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
   useEffect(() => {
-    const clientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-    if (!clientId) return;
+    if (!googleClientId) return;
 
     const existingScript = document.getElementById("google-oauth");
+    const initialize = () => {
+      if (!window.google) return;
+      window.google.accounts.id.initialize({
+        client_id: googleClientId,
+        callback: handleGoogleSuccess,
+      });
+      window.google.accounts.id.renderButton(document.getElementById("googleSignInDiv"), {
+        theme: "outline",
+        size: "large",
+        shape: "pill",
+        text: "signin_with",
+      });
+    };
+
     if (existingScript) {
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleSuccess,
-        });
-        window.google.accounts.id.renderButton(
-          document.getElementById("googleSignInDiv"),
-          { theme: "outline", size: "large", shape: "pill", text: "continue_with" },
-        );
-      }
+      initialize();
       return;
     }
 
@@ -59,29 +65,16 @@ export default function Login() {
     script.async = true;
     script.defer = true;
     script.id = "google-oauth";
-    script.onload = () => {
-      if (window.google) {
-        window.google.accounts.id.initialize({
-          client_id: clientId,
-          callback: handleGoogleSuccess,
-        });
-        window.google.accounts.id.renderButton(
-          document.getElementById("googleSignInDiv"),
-          { theme: "outline", size: "large", shape: "pill", text: "continue_with" },
-        );
-      }
-    };
+    script.onload = initialize;
     document.body.appendChild(script);
 
     return () => {
-      if (script.parentNode) {
-        script.parentNode.removeChild(script);
-      }
+      if (script.parentNode) script.parentNode.removeChild(script);
     };
-  }, [handleGoogleSuccess]);
+  }, [handleGoogleSuccess, googleClientId]);
 
-  const handleLogin = async (e) => {
-    e.preventDefault();
+  const handleLogin = async (event) => {
+    event.preventDefault();
     setError("");
     try {
       const res = await api.post("/users/login", { email, password });
@@ -99,16 +92,11 @@ export default function Login() {
     <div className="relative min-h-screen bg-gradient-login">
       <div className="absolute inset-0 bg-base-darkest/95" />
       <div className="relative z-10 flex min-h-screen items-center justify-center px-6 py-12">
-        <div className="w-full max-w-sm rounded-4xl border border-border/60 bg-base-card/95 p-10 shadow-soft">
-          <header className="text-center text-text-primary">
-            <p className="text-xs uppercase tracking-[0.35em] text-text-muted">
-              Welcome back
-            </p>
-            <h1 className="mt-3 text-3xl font-display font-semibold text-text-secondary">
-              Welcome
-            </h1>
+        <div className="w-full max-w-sm rounded-[40px] border border-border/60 bg-base-card/95 p-10 shadow-soft">
+          <header className="text-center">
+            <h1 className="text-3xl font-display font-semibold text-text-secondary">¡Bienvenido!</h1>
             <p className="mt-2 text-sm text-text-muted">
-              Username or Email to continue with FinWise
+              Ingresá con tu correo para continuar con tu organización financiera.
             </p>
           </header>
 
@@ -121,49 +109,47 @@ export default function Login() {
           <form onSubmit={handleLogin} className="mt-8 space-y-5 text-text-primary">
             <div>
               <label className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Username or Email
+                Correo electrónico
               </label>
               <input
                 type="email"
-                className="mt-2 w-full rounded-3xl border border-border bg-base-muted/80 px-4 py-3 text-text-primary placeholder:text-text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                className="mt-2 w-full rounded-full border border-border bg-base-muted/80 px-4 py-3 text-text-primary placeholder:text-text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
               />
             </div>
 
-            <div>
+            <div className="relative">
               <label className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Password
+                Contraseña
               </label>
               <input
-                type="password"
-                className="mt-2 w-full rounded-3xl border border-border bg-base-muted/80 px-4 py-3 text-text-primary placeholder:text-text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                type={showPassword ? "text" : "password"}
+                className="mt-2 w-full rounded-full border border-border bg-base-muted/80 px-4 py-3 pr-14 text-text-primary placeholder:text-text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
                 required
               />
-              <a
-                href="#"
-                className="mt-2 inline-block text-xs font-medium text-brand hover:text-brand-hover"
+              <button
+                type="button"
+                onClick={() => setShowPassword((prev) => !prev)}
+                className="absolute right-3 top-[46px] text-text-muted transition hover:text-brand"
               >
-                Forgot Password?
-              </a>
+                {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+              </button>
             </div>
 
-            <div className="space-y-3">
-              <button
-                type="submit"
-                className="w-full rounded-3xl bg-brand px-5 py-3 text-sm font-semibold text-base-dark shadow-card transition hover:bg-brand-hover"
-              >
-                Log In
-              </button>
-              <a
-                href="/register"
-                className="block w-full rounded-3xl border border-brand px-5 py-3 text-center text-sm font-semibold text-brand transition hover:bg-brand/10"
-              >
-                Sign Up
-              </a>
+            <button
+              type="submit"
+              className="w-full rounded-full bg-brand px-5 py-3 text-sm font-semibold text-base-dark shadow-card transition hover:bg-brand-hover"
+            >
+              Iniciar sesión
+            </button>
+          </form>
+
+          {googleClientId && (
+            <div className="mt-6 space-y-3">
               <div className="relative flex items-center justify-center">
                 <span className="absolute inset-x-0 h-px bg-border" />
                 <span className="relative bg-base-card/95 px-3 text-[11px] uppercase tracking-wide text-text-muted">
@@ -172,12 +158,14 @@ export default function Login() {
               </div>
               <div id="googleSignInDiv" className="flex justify-center" />
             </div>
-          </form>
+          )}
 
-          <footer className="mt-8 text-center text-xs text-text-muted">
-            By logging in, you agree to our{" "}
-            <span className="font-medium text-text-secondary">Terms & Policy</span>.
-          </footer>
+          <p className="mt-8 text-center text-xs text-text-muted">
+            ¿No tenés cuenta todavía?{" "}
+            <a href="/register" className="font-semibold text-brand hover:text-brand-hover">
+              Créala acá
+            </a>
+          </p>
         </div>
       </div>
     </div>
