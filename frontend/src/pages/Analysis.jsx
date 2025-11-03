@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
 import DateInput from "../components/DateInput";
+import EmptyState from "../components/EmptyState";
 import {
   ResponsiveContainer,
   BarChart,
@@ -11,7 +12,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
-import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Search } from "lucide-react";
 
 const TAB_OPTIONS = [
   { key: "DAILY", label: "Daily" },
@@ -547,9 +548,12 @@ export default function Analysis() {
 
             <div className="space-y-3 text-sm">
               {searchResults.length === 0 ? (
-                <p className="rounded-3xl border border-border/60 bg-base-dark px-4 py-4 text-center text-text-muted">
-                  No results for the selected filters.
-                </p>
+                <EmptyState
+                  icon={Search}
+                  title="Sin resultados"
+                  description="Probá ajustar los filtros o el texto de búsqueda."
+                  className="border-dashed border-border/60 bg-base-dark/70"
+                />
               ) : (
                 searchResults.map((tx) => (
                   <div

@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
+import EmptyState from "../components/EmptyState";
 
 const ICON_MAP = {
   income: Wallet,
@@ -287,9 +288,12 @@ export default function Categories() {
 
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             {filteredCategories.length === 0 ? (
-              <p className="rounded-3xl border border-border/50 bg-base-card/80 px-4 py-6 text-center text-sm text-text-muted">
-                No categories yet.
-              </p>
+              <EmptyState
+                icon={Layers}
+                title="Sin categorías personalizadas"
+                description="Creá categorías para organizar tus ingresos y gastos."
+                className="border-dashed border-border/60 bg-base-card/70 col-span-full"
+              />
             ) : (
               filteredCategories.map((cat) => {
                 const IconComp = getIcon(cat);

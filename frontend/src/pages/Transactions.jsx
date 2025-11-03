@@ -8,8 +8,10 @@ import {
   HomeIcon,
   Car,
   Layers,
+  ReceiptText,
 } from "lucide-react";
 import api from "../api/axiosClient";
+import EmptyState from "../components/EmptyState";
 
 const CATEGORY_ICON_MAP = {
   income: Wallet,
@@ -211,9 +213,12 @@ export default function Transactions() {
 
         <section className="mt-6 space-y-6">
           {groupedByMonth.length === 0 ? (
-            <p className="text-center text-sm text-text-muted">
-              No transactions found for this filter.
-            </p>
+            <EmptyState
+              icon={ReceiptText}
+              title="Sin movimientos en este filtro"
+              description="Probá cambiar el tipo de movimiento para ver otras transacciones."
+              className="border-dashed border-border/60 bg-base-card/70"
+            />
           ) : (
             groupedByMonth.map(([month, items]) => (
               <div key={month} className="space-y-3">

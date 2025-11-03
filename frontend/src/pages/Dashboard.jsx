@@ -1,10 +1,22 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings, LogOut, Bell, Wallet, ShoppingBag, Car, HomeIcon, Layers, Plus } from "lucide-react";
+import {
+  Settings,
+  LogOut,
+  Bell,
+  Wallet,
+  ShoppingBag,
+  Car,
+  HomeIcon,
+  Layers,
+  Plus,
+  ReceiptText,
+} from "lucide-react";
 import api from "../api/axiosClient";
 import NavBar from "../components/NavBar";
 import EntityCarousel from "../components/EntityCarousel";
 import QuickTransactionForm from "../components/QuickTransactionForm";
+import EmptyState from "../components/EmptyState";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
@@ -380,28 +392,35 @@ export default function Dashboard() {
             </div>
 
             <div className="space-y-3">
-              {expenseBreakdown.length === 0 && (
-                <p className="text-sm text-text-muted">No hay gastos registrados.</p>
-              )}
-              {expenseBreakdown.map((item, index) => (
-                <div
-                  key={`${item.category || 'category'}-${index}`}
-                  className="flex items-center justify-between rounded-3xl border border-border/50 bg-base-dark/80 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <CategoryIcon category={item.category} />
-                    <div>
-                      <p className="text-sm font-semibold text-text-secondary">
-                        {item.category || "Sin categoría"}
-                      </p>
-                      <p className="text-xs text-text-muted">Expense</p>
+              {expenseBreakdown.length === 0 ? (
+                <EmptyState
+                  icon={ShoppingBag}
+                  title="Aún no registraste gastos"
+                  description="Cuando cargues tus gastos vas a ver el detalle por categoría."
+                  className="bg-base-dark/70 px-4 py-6"
+                  tone="sky"
+                />
+              ) : (
+                expenseBreakdown.map((item, index) => (
+                  <div
+                    key={`${item.category || 'category'}-${index}`}
+                    className="flex items-center justify-between rounded-3xl border border-border/50 bg-base-dark/80 px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CategoryIcon category={item.category} />
+                      <div>
+                        <p className="text-sm font-semibold text-text-secondary">
+                          {item.category || "Sin categoría"}
+                        </p>
+                        <p className="text-xs text-text-muted">Expense</p>
+                      </div>
                     </div>
+                    <p className="text-sm font-semibold text-sky-light">
+                      -${formatMoney(item.total)}
+                    </p>
                   </div>
-                  <p className="text-sm font-semibold text-sky-light">
-                    -${formatMoney(item.total)}
-                  </p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
@@ -410,37 +429,44 @@ export default function Dashboard() {
               <p className="text-sm font-medium">Transactions</p>
             </div>
             <div className="space-y-2">
-              {transactions.length === 0 && (
-                <p className="text-sm text-text-muted">No hay movimientos recientes.</p>
-              )}
-              {transactions.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between rounded-3xl border border-border/40 bg-base-dark/80 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <CategoryIcon category={tx.category || tx.type} />
-                    <div>
-                      <p className="text-sm font-semibold text-text-secondary">
-                        {tx.description}
+              {transactions.length === 0 ? (
+                <EmptyState
+                  icon={ReceiptText}
+                  title="Sin movimientos recientes"
+                  description="Cuando registres ingresos o gastos recientes los vas a encontrar acá."
+                  className="bg-base-dark/70 px-4 py-6"
+                  tone="brand"
+                />
+              ) : (
+                transactions.map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="flex items-center justify-between rounded-3xl border border-border/40 bg-base-dark/80 px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CategoryIcon category={tx.category || tx.type} />
+                      <div>
+                        <p className="text-sm font-semibold text-text-secondary">
+                          {tx.description}
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          {formatDate(tx.date)} · {formatShortDate(tx.date)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p
+                        className={`text-sm font-semibold ${
+                          tx.amount < 0 ? "text-sky-light" : "text-brand"
+                        }`}
+                      >
+                        {tx.amount < 0 ? "-" : "+"}${formatMoney(Math.abs(tx.amount))}
                       </p>
-                      <p className="text-xs text-text-muted">
-                        {formatDate(tx.date)} · {formatShortDate(tx.date)}
-                      </p>
+                      <p className="text-xs text-text-muted">{tx.category || "-"}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p
-                      className={`text-sm font-semibold ${
-                        tx.amount < 0 ? "text-sky-light" : "text-brand"
-                      }`}
-                    >
-                      {tx.amount < 0 ? "-" : "+"}${formatMoney(Math.abs(tx.amount))}
-                    </p>
-                    <p className="text-xs text-text-muted">{tx.category || "-"}</p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </section>
