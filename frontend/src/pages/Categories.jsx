@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
+import EmptyState from "../components/EmptyState";
 
 const ICON_MAP = {
   income: Wallet,
@@ -50,18 +51,24 @@ const ICON_COLORS = {
 };
 
 const ICON_OPTIONS = [
-  { value: "wallet", label: "Wallet", icon: Wallet },
-  { value: "shopping-bag", label: "Shopping", icon: ShoppingBag },
-  { value: "home", label: "Home", icon: Home },
-  { value: "car", label: "Transport", icon: Car },
-  { value: "piggy-bank", label: "Savings", icon: PiggyBank },
-  { value: "utensils", label: "Food", icon: Utensils },
-  { value: "bus", label: "Bus", icon: BusFront },
-  { value: "pill", label: "Medicine", icon: Pill },
-  { value: "gift", label: "Gifts", icon: Gift },
-  { value: "clapperboard", label: "Entertainment", icon: Clapperboard },
-  { value: "badge-dollar-sign", label: "Salary", icon: BadgeDollarSign },
-  { value: "line-chart", label: "Investments", icon: LineChart },
+  { value: "wallet", label: "Billetera", icon: Wallet },
+  { value: "shopping-bag", label: "Compras", icon: ShoppingBag },
+  { value: "home", label: "Hogar", icon: Home },
+  { value: "car", label: "Transporte", icon: Car },
+  { value: "piggy-bank", label: "Ahorros", icon: PiggyBank },
+  { value: "utensils", label: "Comida", icon: Utensils },
+  { value: "bus", label: "Colectivo", icon: BusFront },
+  { value: "pill", label: "Salud", icon: Pill },
+  { value: "gift", label: "Regalos", icon: Gift },
+  { value: "clapperboard", label: "Entretenimiento", icon: Clapperboard },
+  { value: "badge-dollar-sign", label: "Sueldo", icon: BadgeDollarSign },
+  { value: "line-chart", label: "Inversiones", icon: LineChart },
+];
+
+const FILTER_OPTIONS = [
+  { value: "ALL", label: "Todas" },
+  { value: "INCOME", label: "Ingresos" },
+  { value: "EXPENSE", label: "Gastos" },
 ];
 
 export default function Categories() {
@@ -221,7 +228,7 @@ export default function Categories() {
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="text-xl font-semibold text-text-secondary">Categories</h1>
+          <h1 className="text-xl font-semibold text-text-secondary">Categorías</h1>
           <button
             onClick={() => {
               setMenuCategory(null);
@@ -238,24 +245,24 @@ export default function Categories() {
           <div className="flex items-center justify-between">
             <div>
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Total Balance
+                Balance total
               </p>
               <p className="mt-1 text-2xl font-display font-semibold">${balance}</p>
             </div>
             <div className="text-right">
               <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Total Expense
+                Gasto total
               </p>
               <p className="mt-1 text-lg font-semibold text-sky-light">-${totalExpense}</p>
             </div>
           </div>
           <div className="mt-4 grid grid-cols-2 gap-3 text-sm text-text-secondary">
             <div className="rounded-3xl border border-brand/40 bg-brand/15 px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-text-muted">Income</p>
+              <p className="text-xs uppercase tracking-wide text-text-muted">Ingresos</p>
               <p className="mt-1 text-lg font-semibold text-brand">${totalIncome}</p>
             </div>
             <div className="rounded-3xl border border-border/40 bg-base-dark px-4 py-3">
-              <p className="text-xs uppercase tracking-wide text-text-muted">Categories</p>
+              <p className="text-xs uppercase tracking-wide text-text-muted">Categorías</p>
               <p className="mt-1 text-lg font-semibold">{totals.total}</p>
             </div>
           </div>
@@ -263,23 +270,23 @@ export default function Categories() {
 
         <section className="mt-6">
           <div className="flex items-center justify-between">
-            <h2 className="text-sm font-medium text-text-secondary">Categories List</h2>
+            <h2 className="text-sm font-medium text-text-secondary">Listado de categorías</h2>
             <div className="flex gap-2 text-xs">
-              {["ALL", "INCOME", "EXPENSE"].map((key) => (
+              {FILTER_OPTIONS.map(({ value, label }) => (
                 <button
-                  key={key}
+                  key={value}
                   type="button"
                   onClick={() => {
                     setMenuCategory(null);
-                    setFilter(key);
+                    setFilter(value);
                   }}
                   className={`rounded-full px-4 py-2 transition ${
-                    filter === key
+                    filter === value
                       ? "bg-brand text-base-dark shadow-card"
                       : "bg-base-dark text-text-muted"
                   }`}
                 >
-                  {key.toLowerCase()}
+                  {label}
                 </button>
               ))}
             </div>
@@ -287,9 +294,12 @@ export default function Categories() {
 
           <div className="mt-4 grid grid-cols-2 gap-4 sm:grid-cols-3">
             {filteredCategories.length === 0 ? (
-              <p className="rounded-3xl border border-border/50 bg-base-card/80 px-4 py-6 text-center text-sm text-text-muted">
-                No categories yet.
-              </p>
+              <EmptyState
+                icon={Layers}
+                title="Sin categorías personalizadas"
+                description="Creá categorías para organizar tus ingresos y gastos."
+                className="border-dashed border-border/60 bg-base-card/70 col-span-full"
+              />
             ) : (
               filteredCategories.map((cat) => {
                 const IconComp = getIcon(cat);
@@ -353,7 +363,7 @@ export default function Categories() {
                           onClick={() => setMenuCategory(null)}
                           className="text-xs text-text-muted hover:text-text-secondary"
                         >
-                          Close
+                          Cerrar
                         </button>
                       </div>
                     )}
@@ -381,7 +391,7 @@ export default function Categories() {
                 <X size={16} />
               </button>
               <h3 className="text-sm font-semibold text-text-secondary">
-                {form.id ? "Edit category" : "Add category"}
+                {form.id ? "Editar categoría" : "Crear categoría"}
               </h3>
               {error && (
                 <p className="mt-2 rounded-3xl border border-red-400/60 bg-red-500/10 px-3 py-2 text-xs text-red-200">
@@ -391,12 +401,12 @@ export default function Categories() {
               <form onSubmit={handleSubmit} className="mt-4 space-y-4">
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                    Name
+                    Nombre
                   </label>
                   <input
                   type="text"
                   name="name"
-                  placeholder="Category name"
+                  placeholder="Nombre de la categoría"
                   value={form.name}
                   onChange={handleChange}
                   required
@@ -405,7 +415,7 @@ export default function Categories() {
               </div>
                 <div>
                   <label className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                    Type
+                    Tipo
                   </label>
                   <select
                     name="type"
@@ -413,13 +423,13 @@ export default function Categories() {
                     onChange={handleChange}
                     className="mt-2 w-full rounded-3xl border border-border bg-base-dark px-4 py-3 text-text-primary focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
                   >
-                    <option value="INCOME">Income</option>
-                    <option value="EXPENSE">Expense</option>
+                    <option value="INCOME">Ingreso</option>
+                    <option value="EXPENSE">Gasto</option>
                   </select>
                 </div>
               <div>
                 <label className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                  Icon
+                  Ícono
                 </label>
                 <div className="mt-3 grid grid-cols-3 gap-3">
                   {ICON_OPTIONS.map(({ value, label, icon: OptionIcon }) => {
@@ -447,7 +457,7 @@ export default function Categories() {
                 disabled={loading}
                 className="w-full rounded-3xl bg-brand px-5 py-3 text-sm font-semibold text-base-dark shadow-card transition hover:bg-brand/90"
               >
-                {loading ? "Saving..." : form.id ? "Update category" : "Save category"}
+                {loading ? "Guardando..." : form.id ? "Actualizar categoría" : "Guardar categoría"}
               </button>
             </form>
             </div>

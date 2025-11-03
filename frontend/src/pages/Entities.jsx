@@ -1,5 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { Users, ReceiptText } from "lucide-react";
 import api from "../api/axiosClient";
+import EmptyState from "../components/EmptyState";
 
 const SHARE_TOTAL = 100;
 
@@ -39,6 +41,7 @@ export default function Entities() {
 
   const [memberForms, setMemberForms] = useState({});
   const [shareEdits, setShareEdits] = useState({});
+  const newEntityRef = useRef(null);
 
   useEffect(() => {
     fetchEntities();
@@ -326,7 +329,10 @@ export default function Entities() {
 
   return (
     <div className="min-h-screen bg-primary text-white p-6 space-y-8">
-      <section className="bg-secondary rounded-2xl p-6 shadow-md space-y-4">
+      <section
+        ref={newEntityRef}
+        className="bg-secondary rounded-2xl p-6 shadow-md space-y-4"
+      >
         <h1 className="text-2xl font-bold">Entidades compartidas</h1>
         <p className="text-gray-400">
           Creá grupos para dividir gastos. Cada integrante recibe un porcentaje del total.
@@ -428,7 +434,14 @@ export default function Entities() {
       <section className="space-y-4">
         <h2 className="text-xl font-semibold">Tus entidades</h2>
         {entities.length === 0 ? (
-          <p className="text-gray-400">Todavía no creaste entidades.</p>
+          <EmptyState
+            icon={Users}
+            title="Aún no tenés entidades"
+            description="Agrupá gastos compartidos creando tu primera entidad."
+            actionLabel="Crear entidad"
+            onAction={() => newEntityRef.current?.scrollIntoView({ behavior: "smooth" })}
+            className="border-dashed border-border/70 bg-secondary/40"
+          />
         ) : (
           <div className="space-y-6">
             {entities.map((entity) => (
@@ -548,9 +561,13 @@ export default function Entities() {
                     {loadingExpenses[entity.id] ? (
                       <p className="text-gray-400 text-sm">Cargando...</p>
                     ) : !entityExpenses[entity.id] || entityExpenses[entity.id].length === 0 ? (
-                      <p className="text-gray-400 text-sm">
-                        Aún no registraste gastos compartidos.
-                      </p>
+                      <EmptyState
+                        icon={ReceiptText}
+                        title="Sin gastos compartidos"
+                        description="Registrá gastos para ver cómo se distribuyen entre los integrantes."
+                        className="border-dashed border-border/70 bg-primary/30"
+                        tone="brand"
+                      />
                     ) : (
                       <div className="space-y-3">
                         {entityExpenses[entity.id].map(renderExpenseBreakdown)}

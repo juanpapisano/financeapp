@@ -1,7 +1,9 @@
 import { useEffect, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { Wallet } from "lucide-react";
 import api from "../api/axiosClient";
+import EmptyState from "../components/EmptyState";
 
 export default function Incomes() {
   const [incomes, setIncomes] = useState([]);
@@ -147,7 +149,12 @@ export default function Incomes() {
 
       <h2 className="text-lg font-semibold mb-2">Listado</h2>
       {incomes.length === 0 ? (
-        <p className="text-gray-400">No hay ingresos registrados.</p>
+        <EmptyState
+          icon={Wallet}
+          title="No cargaste ingresos"
+          description="Sumá tu primer ingreso con el formulario de arriba."
+          className="border-dashed border-border/70 bg-primary/30"
+        />
       ) : (
         <div className="bg-secondary rounded-xl p-4 shadow-md">
           <table className="w-full text-sm">

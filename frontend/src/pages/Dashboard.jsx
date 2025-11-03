@@ -1,10 +1,23 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Settings, LogOut, Bell, Wallet, ShoppingBag, Car, HomeIcon, Layers, Plus } from "lucide-react";
+import {
+  Settings,
+  LogOut,
+  Bell,
+  Wallet,
+  ShoppingBag,
+  Car,
+  HomeIcon,
+  Layers,
+  Plus,
+  ReceiptText,
+  Sparkles,
+} from "lucide-react";
 import api from "../api/axiosClient";
 import NavBar from "../components/NavBar";
 import EntityCarousel from "../components/EntityCarousel";
 import QuickTransactionForm from "../components/QuickTransactionForm";
+import EmptyState from "../components/EmptyState";
 
 export default function Dashboard() {
   const [summary, setSummary] = useState(null);
@@ -16,6 +29,12 @@ export default function Dashboard() {
   const [entitiesLoading, setEntitiesLoading] = useState(true);
   const [entitiesError, setEntitiesError] = useState("");
   const navigate = useNavigate();
+
+  const rangeOptions = [
+    { value: "Daily", label: "Diario" },
+    { value: "Weekly", label: "Semanal" },
+    { value: "Monthly", label: "Mensual" },
+  ];
 
   const loadSummary = useCallback(async () => {
     try {
@@ -37,18 +56,18 @@ export default function Dashboard() {
           id: `expense-${item.id}`,
           type: "expense",
           amount: Number(item.amount) * -1,
-          description: item.description || item.category?.name || "Expense",
+          description: item.description || item.category?.name || "Gasto",
           date: item.date,
-          category: item.category?.name || "Expense",
+          category: item.category?.name || "Gasto",
         })) || [];
       const incomes =
         incomesRes.data.items?.map((item) => ({
           id: `income-${item.id}`,
           type: "income",
           amount: Number(item.amount),
-          description: item.description || item.category?.name || "Income",
+          description: item.description || item.category?.name || "Ingreso",
           date: item.date,
-          category: item.category?.name || "Income",
+          category: item.category?.name || "Ingreso",
         })) || [];
       const merged = [...expenses, ...incomes].sort((a, b) => new Date(b.date) - new Date(a.date));
       setTransactions(merged.slice(0, 5));
@@ -187,6 +206,15 @@ export default function Dashboard() {
     }).format(date);
   };
 
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Buenos días";
+    if (hour < 19) return "Buenas tardes";
+    return "Buenas noches";
+  }, []);
+
+  const openQuickAdd = () => setShowQuickAdd(true);
+
   const expenseBreakdown = useMemo(() => {
     if (!summary?.expenseByCategory) return [];
     return summary.expenseByCategory.slice(0, 5);
@@ -196,6 +224,11 @@ export default function Dashboard() {
   const totalIncome = formatMoney(summary?.totalIncome);
   const totalExpense = formatMoney(summary?.totalExpense);
   const monthlyGoal = formatMoney((summary?.totalIncome || 0) * 0.3);
+  const hasSummaryTotals =
+    Number(summary?.totalIncome || 0) > 0 || Number(summary?.totalExpense || 0) > 0;
+  const hasExpenseBreakdown = expenseBreakdown.length > 0;
+  const hasAnyTransactions = transactions.length > 0;
+  const isFirstTime = !hasSummaryTotals && !hasExpenseBreakdown && !hasAnyTransactions;
 
   const categoryIconMap = {
     income: Wallet,
@@ -240,15 +273,15 @@ export default function Dashboard() {
       <div className="relative mx-auto flex min-h-screen w-full max-w-md flex-col px-5 pb-28 pt-12">
         <header className="mb-6 flex items-center justify-between">
           <div>
-            <p className="text-xs uppercase tracking-[0.35em] text-text-muted">Hi, Welcome Back</p>
+            <p className="text-xs uppercase tracking-[0.35em] text-text-muted">¡HOLA!</p>
             <h1 className="mt-2 text-2xl font-display font-semibold text-text-secondary">
               {userName}
             </h1>
-            <p className="text-xs text-text-muted">Good Morning</p>
+            <p className="text-xs text-text-muted">{greeting}</p>
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={() => setShowQuickAdd(true)}
+              onClick={openQuickAdd}
               className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
               title="Agregar movimiento"
             >
@@ -257,11 +290,14 @@ export default function Dashboard() {
             <button
               onClick={() => setMenuOpen((prev) => !prev)}
               className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
-              title="Settings"
+              title="Configuración"
             >
               <Settings size={18} />
             </button>
-            <button className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand">
+            <button
+              className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
+              title="Notificaciones"
+            >
               <Bell size={18} />
             </button>
           </div>
@@ -274,7 +310,7 @@ export default function Dashboard() {
                 }}
                 className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-base-dark"
               >
-                <Layers size={16} /> Categories
+                <Layers size={16} /> Categorías
               </button>
               <button
                 onClick={() => {
@@ -283,57 +319,61 @@ export default function Dashboard() {
                 }}
                 className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-brand transition hover:bg-base-dark"
               >
-                <LogOut size={16} /> Log out
+                <LogOut size={16} /> Cerrar sesión
               </button>
             </div>
           )}
         </header>
 
-        <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Total Balance
-              </p>
-              <p className="mt-1 text-3xl font-display font-semibold text-text-secondary">
-                ${balance}
+        {isFirstTime ? (
+          <FirstTimeDashboardState onAddMovement={openQuickAdd} />
+        ) : (
+          <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  Balance total
+                </p>
+                <p className="mt-1 text-3xl font-display font-semibold text-text-secondary">
+                  ${balance}
+                </p>
+              </div>
+              <div className="text-right">
+                <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                  Gasto total
+                </p>
+                <p className="mt-1 text-xl font-display font-semibold text-sky-light">
+                  -${totalExpense}
+                </p>
+              </div>
+            </div>
+            <div className="mt-4">
+              <div className="h-2 w-full rounded-full bg-base-dark">
+                <div
+                  className="h-full rounded-full bg-brand"
+                  style={{
+                    width: `${Math.min(
+                      100,
+                      Math.round(((summary?.totalExpense || 0) / ((summary?.totalIncome || 0) || 1)) * 100),
+                    )}%`,
+                  }}
+                />
+              </div>
+              <div className="mt-2 flex items-center justify-between text-xs text-text-muted">
+                <span>Objetivo 30%</span>
+                <span className="rounded-full bg-base-dark px-2 py-1 font-medium text-text-secondary">
+                  ${monthlyGoal}
+                </span>
+              </div>
+              <p className="mt-2 flex items-center gap-2 text-xs text-text-muted">
+                <span className="inline-flex h-3 w-3 items-center justify-center rounded-sm border border-text-muted">
+                  ✓
+                </span>
+                Tus gastos representan el 30% de tus ingresos. ¡Buen trabajo!
               </p>
             </div>
-            <div className="text-right">
-              <p className="text-xs font-semibold uppercase tracking-wide text-text-muted">
-                Total Expense
-              </p>
-              <p className="mt-1 text-xl font-display font-semibold text-sky-light">
-                -${totalExpense}
-              </p>
-            </div>
-          </div>
-          <div className="mt-4">
-            <div className="h-2 w-full rounded-full bg-base-dark">
-              <div
-                className="h-full rounded-full bg-brand"
-                style={{
-                  width: `${Math.min(
-                    100,
-                    Math.round(((summary?.totalExpense || 0) / ((summary?.totalIncome || 0) || 1)) * 100),
-                  )}%`,
-                }}
-              />
-            </div>
-            <div className="mt-2 flex items-center justify-between text-xs text-text-muted">
-              <span>30%</span>
-              <span className="rounded-full bg-base-dark px-2 py-1 font-medium text-text-secondary">
-                ${monthlyGoal}
-              </span>
-            </div>
-            <p className="mt-2 flex items-center gap-2 text-xs text-text-muted">
-              <span className="inline-flex h-3 w-3 items-center justify-center rounded-sm border border-text-muted">
-                ✓
-              </span>
-              30% Of Your Expenses, Looks Good.
-            </p>
-          </div>
-        </section>
+          </section>
+        )}
 
         <section className="mt-6 space-y-4">
           <EntityCarousel
@@ -344,15 +384,15 @@ export default function Dashboard() {
           />
 
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-text-secondary">Overview</p>
+            <p className="text-sm font-medium text-text-secondary">Resumen</p>
             <div className="flex gap-2 text-xs">
-              {["Daily", "Weekly", "Monthly"].map((label) => (
+              {rangeOptions.map(({ value, label }) => (
                 <button
-                  key={label}
+                  key={value}
                   type="button"
-                  onClick={() => setSelectedRange(label)}
+                  onClick={() => setSelectedRange(value)}
                   className={`rounded-full px-4 py-2 transition ${
-                    selectedRange === label
+                    selectedRange === value
                       ? "bg-brand text-base-dark shadow-card"
                       : "bg-base-dark text-text-muted"
                   }`}
@@ -370,77 +410,91 @@ export default function Dashboard() {
               </div>
               <div>
                 <p className="text-xs uppercase tracking-wide text-text-muted">
-                  Income & Left Month
+                  Ingresos del mes
                 </p>
                 <p className="text-base font-semibold text-text-secondary">
                   ${totalIncome}
                 </p>
-                <p className="text-xs text-text-muted">Balance {balance}</p>
+                <p className="text-xs text-text-muted">Balance disponible ${balance}</p>
               </div>
             </div>
 
             <div className="space-y-3">
-              {expenseBreakdown.length === 0 && (
-                <p className="text-sm text-text-muted">No hay gastos registrados.</p>
-              )}
-              {expenseBreakdown.map((item, index) => (
-                <div
-                  key={`${item.category || 'category'}-${index}`}
-                  className="flex items-center justify-between rounded-3xl border border-border/50 bg-base-dark/80 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <CategoryIcon category={item.category} />
-                    <div>
-                      <p className="text-sm font-semibold text-text-secondary">
-                        {item.category || "Sin categoría"}
-                      </p>
-                      <p className="text-xs text-text-muted">Expense</p>
+              {expenseBreakdown.length === 0 ? (
+                <EmptyState
+                  icon={ShoppingBag}
+                  title="Aún no registraste gastos"
+                  description="Cuando cargues tus gastos vas a ver el detalle por categoría."
+                  className="bg-base-dark/70 px-4 py-6"
+                  tone="sky"
+                />
+              ) : (
+                expenseBreakdown.map((item, index) => (
+                  <div
+                    key={`${item.category || 'category'}-${index}`}
+                    className="flex items-center justify-between rounded-3xl border border-border/50 bg-base-dark/80 px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CategoryIcon category={item.category} />
+                      <div>
+                        <p className="text-sm font-semibold text-text-secondary">
+                          {item.category || "Sin categoría"}
+                        </p>
+                        <p className="text-xs text-text-muted">Gasto</p>
+                      </div>
                     </div>
+                    <p className="text-sm font-semibold text-sky-light">
+                      -${formatMoney(item.total)}
+                    </p>
                   </div>
-                  <p className="text-sm font-semibold text-sky-light">
-                    -${formatMoney(item.total)}
-                  </p>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
 
           <div className="space-y-3 rounded-4xl border border-border/60 bg-base-card/90 p-5 shadow-soft">
             <div className="flex items-center justify-between text-text-secondary">
-              <p className="text-sm font-medium">Transactions</p>
+              <p className="text-sm font-medium">Movimientos recientes</p>
             </div>
             <div className="space-y-2">
-              {transactions.length === 0 && (
-                <p className="text-sm text-text-muted">No hay movimientos recientes.</p>
-              )}
-              {transactions.map((tx) => (
-                <div
-                  key={tx.id}
-                  className="flex items-center justify-between rounded-3xl border border-border/40 bg-base-dark/80 px-4 py-3"
-                >
-                  <div className="flex items-center gap-3">
-                    <CategoryIcon category={tx.category || tx.type} />
-                    <div>
-                      <p className="text-sm font-semibold text-text-secondary">
-                        {tx.description}
+              {transactions.length === 0 ? (
+                <EmptyState
+                  icon={ReceiptText}
+                  title="Sin movimientos recientes"
+                  description="Cuando registres ingresos o gastos recientes los vas a encontrar acá."
+                  className="bg-base-dark/70 px-4 py-6"
+                  tone="brand"
+                />
+              ) : (
+                transactions.map((tx) => (
+                  <div
+                    key={tx.id}
+                    className="flex items-center justify-between rounded-3xl border border-border/40 bg-base-dark/80 px-4 py-3"
+                  >
+                    <div className="flex items-center gap-3">
+                      <CategoryIcon category={tx.category || tx.type} />
+                      <div>
+                        <p className="text-sm font-semibold text-text-secondary">
+                          {tx.description}
+                        </p>
+                        <p className="text-xs text-text-muted">
+                          {formatDate(tx.date)} · {formatShortDate(tx.date)}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <p
+                        className={`text-sm font-semibold ${
+                          tx.amount < 0 ? "text-sky-light" : "text-brand"
+                        }`}
+                      >
+                        {tx.amount < 0 ? "-" : "+"}${formatMoney(Math.abs(tx.amount))}
                       </p>
-                      <p className="text-xs text-text-muted">
-                        {formatDate(tx.date)} · {formatShortDate(tx.date)}
-                      </p>
+                      <p className="text-xs text-text-muted">{tx.category || "-"}</p>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <p
-                      className={`text-sm font-semibold ${
-                        tx.amount < 0 ? "text-sky-light" : "text-brand"
-                      }`}
-                    >
-                      {tx.amount < 0 ? "-" : "+"}${formatMoney(Math.abs(tx.amount))}
-                    </p>
-                    <p className="text-xs text-text-muted">{tx.category || "-"}</p>
-                  </div>
-                </div>
-              ))}
+                ))
+              )}
             </div>
           </div>
         </section>
@@ -460,5 +514,56 @@ export default function Dashboard() {
 
       <NavBar />
     </div>
+  );
+}
+
+function FirstTimeDashboardState({ onAddMovement }) {
+  const steps = [
+    {
+      icon: Wallet,
+      title: "Cargá tu primer ingreso",
+      description: 'Usá el botón "+" para sumar el dinero que recibís.',
+    },
+    {
+      icon: ReceiptText,
+      title: "Registrá tus gastos diarios",
+      description: "Anotá gastos grandes y pequeños para ver adónde se va tu plata.",
+    },
+    {
+      icon: Layers,
+      title: "Ordená por categorías",
+      description: "Creá categorías y entidades para compartir gastos con otras personas.",
+    },
+  ];
+
+  return (
+    <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
+      <EmptyState
+        icon={Sparkles}
+        title="Todavía no hay movimientos"
+        description="Cuando registres tu primer ingreso o gasto vas a ver aquí el resumen de tu mes."
+        actionLabel="Agregar movimiento"
+        onAction={onAddMovement}
+        className="bg-base-dark/70"
+        tone="brand"
+      />
+
+      <div className="mt-6 grid grid-cols-1 gap-3">
+        {steps.map(({ icon: StepIcon, title, description }) => (
+          <div
+            key={title}
+            className="flex items-center gap-3 rounded-3xl border border-border/60 bg-base-dark/80 px-4 py-3"
+          >
+            <span className="flex h-10 w-10 items-center justify-center rounded-full bg-brand/15 text-brand">
+              <StepIcon size={18} />
+            </span>
+            <div>
+              <p className="text-sm font-semibold text-text-secondary">{title}</p>
+              <p className="text-xs text-text-muted">{description}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
   );
 }

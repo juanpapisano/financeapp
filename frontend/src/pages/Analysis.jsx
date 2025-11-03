@@ -1,28 +1,33 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import api from "../api/axiosClient";
 import DateInput from "../components/DateInput";
+import EmptyState from "../components/EmptyState";
+import NavBar from "../components/NavBar";
 import {
   ResponsiveContainer,
-  BarChart,
-  Bar,
+  AreaChart,
+  Area,
   CartesianGrid,
   XAxis,
   YAxis,
   Tooltip,
 } from "recharts";
-import { ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
+import { ChevronLeft, ChevronRight, ArrowLeft, Search } from "lucide-react";
 
 const TAB_OPTIONS = [
-  { key: "DAILY", label: "Daily" },
-  { key: "WEEKLY", label: "Weekly" },
-  { key: "MONTHLY", label: "Monthly" },
-  { key: "YEARLY", label: "Yearly" },
-  { key: "SEARCH", label: "Search" },
-  { key: "CALENDAR", label: "Calendar" },
+  { key: "DAILY", label: "Diario" },
+  { key: "WEEKLY", label: "Semanal" },
+  { key: "MONTHLY", label: "Mensual" },
+  { key: "YEARLY", label: "Anual" },
+  { key: "SEARCH", label: "Buscar" },
+  { key: "CALENDAR", label: "Calendario" },
 ];
 
-const WEEKDAY_LABELS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const WEEKDAY_LABELS = ["Lu", "Ma", "Mi", "Ju", "Vi", "Sa", "Do"];
+
+const capitalize = (value = "") =>
+  value ? value.charAt(0).toUpperCase() + value.slice(1) : "";
 
 function formatMoney(value = 0) {
   return Number(value || 0).toLocaleString(undefined, {
@@ -80,11 +85,11 @@ function generatePeriodKeyList(period, now) {
       date.setDate(now.getDate() - (6 - i));
       date.setHours(0, 0, 0, 0);
       const key = toDateKey(date);
-      const label = date.toLocaleDateString("en-US", {
+      const label = date.toLocaleDateString("es-AR", {
         month: "short",
-        day: "numeric",
+        day: "2-digit",
       });
-      list.push({ key, label });
+      list.push({ key, label: capitalize(label) });
     }
   } else if (period === "WEEKLY") {
     for (let i = 5; i >= 0; i -= 1) {
@@ -95,21 +100,25 @@ function generatePeriodKeyList(period, now) {
       const start = getStartOfISOWeek(year, week);
       const end = new Date(start);
       end.setDate(start.getDate() + 6);
-      const label = `${start.toLocaleDateString("en-US", {
+      const labelStart = start.toLocaleDateString("es-AR", {
         month: "short",
-        day: "numeric",
-      })} - ${end.toLocaleDateString("en-US", { day: "numeric" })}`;
-      list.push({ key, label });
+        day: "2-digit",
+      });
+      const labelEnd = end.toLocaleDateString("es-AR", {
+        month: "short",
+        day: "2-digit",
+      });
+      list.push({ key, label: `${capitalize(labelStart)} - ${capitalize(labelEnd)}` });
     }
   } else if (period === "MONTHLY") {
     for (let i = 5; i >= 0; i -= 1) {
       const date = new Date(now.getFullYear(), now.getMonth() - (5 - i), 1);
       const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const label = date.toLocaleDateString("en-US", {
+      const label = date.toLocaleDateString("es-AR", {
         month: "short",
         year: "numeric",
       });
-      list.push({ key, label });
+      list.push({ key, label: capitalize(label) });
     }
   } else if (period === "YEARLY") {
     for (let i = 4; i >= 0; i -= 1) {
@@ -202,8 +211,8 @@ function normalizeTransactions(incomeItems = [], expenseItems = []) {
     id: `income-${item.id}`,
     type: "income",
     amount: Number(item.amount),
-    description: item.description || item.category?.name || "Income",
-    category: item.category?.name || "Income",
+    description: item.description || item.category?.name || "Ingreso",
+    category: item.category?.name || "Ingreso",
     date: item.date,
     dateObj: new Date(item.date),
   }));
@@ -212,8 +221,8 @@ function normalizeTransactions(incomeItems = [], expenseItems = []) {
     id: `expense-${item.id}`,
     type: "expense",
     amount: Math.abs(Number(item.amount)),
-    description: item.description || item.category?.name || "Expense",
-    category: item.category?.name || "Expense",
+    description: item.description || item.category?.name || "Gasto",
+    category: item.category?.name || "Gasto",
     date: item.date,
     dateObj: new Date(item.date),
   }));
@@ -222,7 +231,7 @@ function normalizeTransactions(incomeItems = [], expenseItems = []) {
 }
 
 function formatDateTime(date) {
-  return date.toLocaleString(undefined, {
+  return date.toLocaleString("es-AR", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -283,6 +292,12 @@ export default function Analysis() {
     [selectedMonth, transactions],
   );
 
+  const today = useMemo(() => {
+    const base = new Date();
+    base.setHours(0, 0, 0, 0);
+    return base;
+  }, []);
+
   const searchTotals = useMemo(() => {
     const income = searchResults
       .filter((tx) => tx.type === "income")
@@ -292,6 +307,58 @@ export default function Analysis() {
       .reduce((sum, tx) => sum + tx.amount, 0);
     return { income, expense };
   }, [searchResults]);
+
+  const currentMonthLabel = useMemo(
+    () =>
+      capitalize(
+        new Date().toLocaleDateString("es-AR", {
+          month: "long",
+        }),
+      ),
+    [],
+  );
+
+  const expenseShare = useMemo(() => {
+    const income = Number(summary?.totalIncome || 0);
+    const expense = Number(summary?.totalExpense || 0);
+    if (!income) return 0;
+    return Math.min(100, Math.max(0, (expense / income) * 100));
+  }, [summary]);
+
+  const expenseShareRounded = Math.round(expenseShare);
+  const expenseShareTone =
+    expenseShareRounded >= 80
+      ? { text: "text-red-300", bar: "bg-red-400" }
+      : expenseShareRounded >= 50
+        ? { text: "text-sky-light", bar: "bg-sky-light" }
+        : { text: "text-brand", bar: "bg-brand" };
+  const expenseShareWidth = Math.min(100, Math.max(0, expenseShareRounded));
+
+  const handleCalendarDayClick = useCallback(
+    (date) => {
+      const normalized = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+      const isoDate = toDateKey(normalized);
+
+      const expensesForDay = transactions.filter(
+        (tx) => tx.type === "expense" && isSameDay(tx.dateObj, normalized),
+      );
+
+      setSearchForm((prev) => ({
+        ...prev,
+        query: "",
+        type: "EXPENSE",
+        category: "",
+        from: isoDate,
+        to: isoDate,
+      }));
+      setSearchResults(expensesForDay);
+      setActiveTab("SEARCH");
+      window.requestAnimationFrame(() => {
+        window.scrollTo({ top: 0, behavior: "smooth" });
+      });
+    },
+    [transactions, setSearchForm, setSearchResults, setActiveTab],
+  );
 
   const handleSearchChange = (event) => {
     const { name, value } = event.target;
@@ -341,7 +408,7 @@ export default function Analysis() {
   if (!summary) {
     return (
       <div className="min-h-screen bg-base-darkest text-text-muted flex items-center justify-center">
-        Loading analysis...
+        Cargando análisis...
       </div>
     );
   }
@@ -361,99 +428,180 @@ export default function Analysis() {
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="text-xl font-semibold text-text-secondary">Analysis</h1>
+          <h1 className="text-xl font-semibold text-text-secondary">Análisis</h1>
           <span className="h-8 w-8" />
         </div>
 
         <header className="rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-xs uppercase tracking-[0.35em] text-text-muted">
-                Overview
-              </p>
-              <h2 className="mt-2 text-3xl font-display font-semibold">
-                ${formatMoney(summary.balance)}
-              </h2>
-              <p className="text-xs text-text-muted">
-                30% Of Your Expenses. Looks good.
-              </p>
+          <div className="flex flex-col gap-5">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs uppercase tracking-[0.35em] text-text-muted">
+                  Resumen de {currentMonthLabel}
+                </p>
+                <h2 className="mt-2 text-3xl font-display font-semibold">
+                  ${formatMoney(summary.balance)}
+                </h2>
+              </div>
+              <div className="rounded-3xl border border-border/60 bg-base-dark px-4 py-3 text-xs text-text-muted">
+                <p className="uppercase tracking-wide">Relación gastos / ingresos</p>
+                <div className="mt-1 flex items-baseline justify-between gap-3">
+                  <span className={`text-lg font-semibold ${expenseShareTone.text}`}>
+                    {expenseShareRounded}%
+                  </span>
+                  <span className="text-[11px] uppercase tracking-wide">
+                    del mes actual
+                  </span>
+                </div>
+                <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-base-dark/70">
+                  <span
+                    className={`block h-full rounded-full ${expenseShareTone.bar}`}
+                    style={{ width: `${expenseShareWidth}%` }}
+                  />
+                </div>
+              </div>
             </div>
-            <div className="rounded-3xl bg-brand/15 px-4 py-2 text-right text-sm">
-              <p className="text-text-muted">Income</p>
-              <p className="font-semibold text-brand">
-                ${formatMoney(summary.totalIncome)}
-              </p>
-            </div>
-            <div className="rounded-3xl bg-sky-light/15 px-4 py-2 text-right text-sm">
-              <p className="text-text-muted">Expense</p>
-              <p className="font-semibold text-sky-light">
-                ${formatMoney(summary.totalExpense)}
-              </p>
+            <div className="grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-3xl border border-brand/30 bg-brand/15 px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-text-muted">Ingresos</p>
+                <p className="mt-2 text-lg font-semibold text-brand">
+                  ${formatMoney(summary.totalIncome)}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-sky-light/30 bg-sky-light/15 px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-text-muted">Gastos</p>
+                <p className="mt-2 text-lg font-semibold text-sky-light">
+                  ${formatMoney(summary.totalExpense)}
+                </p>
+              </div>
             </div>
           </div>
         </header>
 
-        <section className="mt-6 flex gap-2">
-          {TAB_OPTIONS.map((tab) => (
-            <button
-              key={tab.key}
-              type="button"
-              onClick={() => setActiveTab(tab.key)}
-              className={`flex-1 rounded-full px-3 py-2 text-xs font-semibold transition ${
-                activeTab === tab.key
-                  ? "bg-brand text-base-dark shadow-card"
-                  : "bg-base-card text-text-muted"
-              }`}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <section className="mt-6">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-medium text-text-secondary">Período de análisis</h2>
+            <p className="text-xs text-text-muted">Elegí cómo querés ver el histórico</p>
+          </div>
+          <div className="mt-3 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+            {TAB_OPTIONS.map((tab) => (
+              <button
+                key={tab.key}
+                type="button"
+                onClick={() => setActiveTab(tab.key)}
+                className={`shrink-0 rounded-full px-4 py-2 text-xs font-semibold transition ${
+                  activeTab === tab.key
+                    ? "bg-brand text-base-dark shadow-card"
+                    : "bg-base-card text-text-muted"
+                }`}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </section>
 
         {showChart && (
           <>
             <div className="mt-6 rounded-4xl border border-border/60 bg-base-card p-6 shadow-card">
-              <div className="flex items-center justify-between text-sm text-text-muted">
-                <p>Income & Expense</p>
-                <p>Last period snapshot</p>
+              <div className="flex flex-wrap items-center justify-between gap-3 text-sm text-text-muted">
+                <div>
+                  <p className="font-semibold text-text-secondary">Ingresos vs gastos</p>
+                  <p className="text-xs">Seguimiento del período seleccionado</p>
+                </div>
+                <div className="flex items-center gap-3 text-xs">
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-brand" />
+                    Ingresos
+                  </span>
+                  <span className="flex items-center gap-2">
+                    <span className="h-2 w-2 rounded-full bg-sky-light" />
+                    Gastos
+                  </span>
+                </div>
               </div>
               <div className="mt-4 h-64">
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartInfo.data}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="#0b2c2c" />
-                    <XAxis dataKey="label" stroke="#8FA9A9" />
-                    <YAxis stroke="#8FA9A9" />
+                  <AreaChart
+                    data={chartInfo.data}
+                    margin={{ top: 10, right: 0, left: -18, bottom: 0 }}
+                  >
+                    <defs>
+                      <linearGradient id="incomeGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#00D09E" stopOpacity={0.55} />
+                        <stop offset="100%" stopColor="#00D09E" stopOpacity={0.05} />
+                      </linearGradient>
+                      <linearGradient id="expenseGradient" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="0%" stopColor="#6DB6FE" stopOpacity={0.62} />
+                        <stop offset="100%" stopColor="#6DB6FE" stopOpacity={0.08} />
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#0b2c2c" vertical={false} />
+                    <XAxis
+                      dataKey="label"
+                      stroke="#8FA9A9"
+                      tick={{ fill: "#8FA9A9", fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
+                    <YAxis
+                      stroke="#8FA9A9"
+                      tick={{ fill: "#8FA9A9", fontSize: 12 }}
+                      axisLine={false}
+                      tickLine={false}
+                    />
                     <Tooltip
                       contentStyle={{
-                        background: "#0E3E3E",
+                        background: "#032427",
                         borderRadius: "16px",
-                        border: "1px solid #144444",
+                        border: "1px solid rgba(0, 208, 158, 0.35)",
                         color: "#F1FFF3",
+                        padding: "0.75rem 1rem",
                       }}
-                      formatter={(value) => `$${formatMoney(value)}`}
+                      formatter={(value, name) => [
+                        `$${formatMoney(value)}`,
+                        name === "income" ? "Ingresos" : "Gastos",
+                      ]}
+                      labelFormatter={(label) => `Período: ${label}`}
                     />
-                    <Bar dataKey="income" fill="#00D09E" radius={[12, 12, 0, 0]} />
-                    <Bar dataKey="expense" fill="#6DB6FE" radius={[12, 12, 0, 0]} />
-                  </BarChart>
+                    <Area
+                      type="monotone"
+                      dataKey="income"
+                      stroke="#00D09E"
+                      strokeWidth={2.5}
+                      fill="url(#incomeGradient)"
+                      dot={{ r: 3, fill: "#00D09E", strokeWidth: 0 }}
+                      activeDot={{ r: 5, fill: "#00D09E" }}
+                    />
+                    <Area
+                      type="monotone"
+                      dataKey="expense"
+                      stroke="#6DB6FE"
+                      strokeWidth={2.5}
+                      fill="url(#expenseGradient)"
+                      dot={{ r: 3, fill: "#6DB6FE", strokeWidth: 0 }}
+                      activeDot={{ r: 5, fill: "#6DB6FE" }}
+                    />
+                  </AreaChart>
                 </ResponsiveContainer>
               </div>
             </div>
-            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-              <div className="rounded-3xl border border-brand/40 bg-brand/15 px-4 py-4">
-                <p className="text-text-muted">Income</p>
-                <p className="mt-1 text-lg font-semibold text-brand">
+            <div className="mt-4 flex gap-3 overflow-x-auto pb-1 text-sm no-scrollbar">
+              <div className="min-w-[180px] shrink-0 rounded-3xl border border-brand/40 bg-brand/15 px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-text-muted">Ingresos</p>
+                <p className="mt-2 text-lg font-semibold text-brand">
                   ${formatMoney(chartInfo.incomeTotal)}
                 </p>
               </div>
-              <div className="rounded-3xl border border-sky-light/40 bg-sky-light/15 px-4 py-4">
-                <p className="text-text-muted">Expense</p>
-                <p className="mt-1 text-lg font-semibold text-sky-light">
+              <div className="min-w-[180px] shrink-0 rounded-3xl border border-sky-light/40 bg-sky-light/15 px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-text-muted">Gastos</p>
+                <p className="mt-2 text-lg font-semibold text-sky-light">
                   ${formatMoney(chartInfo.expenseTotal)}
                 </p>
               </div>
-              <div className="col-span-2 rounded-3xl border border-border/60 bg-base-card px-4 py-4">
-                <p className="text-text-muted">Balance</p>
-                <p className="mt-1 text-lg font-semibold text-text-secondary">
+              <div className="min-w-[200px] shrink-0 rounded-3xl border border-border/60 bg-base-card px-4 py-4">
+                <p className="text-xs uppercase tracking-wide text-text-muted">Balance</p>
+                <p className="mt-2 text-lg font-semibold text-text-secondary">
                   ${formatMoney(chartInfo.balance)}
                 </p>
               </div>
@@ -463,14 +611,14 @@ export default function Analysis() {
 
         {activeTab === "SEARCH" && (
           <section className="mt-6 space-y-5 rounded-4xl border border-border/60 bg-base-card p-6 shadow-card">
-            <h2 className="text-sm font-semibold text-text-secondary">Search</h2>
+            <h2 className="text-sm font-semibold text-text-secondary">Buscar movimientos</h2>
             <form onSubmit={handleSearchSubmit} className="grid grid-cols-1 gap-4">
               <input
                 type="text"
                 name="query"
                 value={searchForm.query}
                 onChange={handleSearchChange}
-                placeholder="Description or category"
+                placeholder="Descripción o categoría"
                 className="rounded-3xl border border-border bg-base-dark px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
               />
               <div className="grid grid-cols-2 gap-3">
@@ -480,9 +628,9 @@ export default function Analysis() {
                   onChange={handleSearchChange}
                   className="rounded-3xl border border-border bg-base-dark px-4 py-3 text-sm text-text-primary focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
                 >
-                  <option value="ALL">All types</option>
-                  <option value="INCOME">Income</option>
-                  <option value="EXPENSE">Expense</option>
+                  <option value="ALL">Todos los tipos</option>
+                  <option value="INCOME">Ingresos</option>
+                  <option value="EXPENSE">Gastos</option>
                 </select>
                 <select
                   name="category"
@@ -490,7 +638,7 @@ export default function Analysis() {
                   onChange={handleSearchChange}
                   className="rounded-3xl border border-border bg-base-dark px-4 py-3 text-sm text-text-primary focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
                 >
-                  <option value="">All categories</option>
+                  <option value="">Todas las categorías</option>
                   {categoryOptions.map((cat) => (
                     <option key={cat} value={cat}>
                       {cat}
@@ -526,19 +674,19 @@ export default function Analysis() {
                 type="submit"
                 className="rounded-3xl bg-brand px-5 py-3 text-sm font-semibold text-base-dark shadow-card transition hover:bg-brand/90"
               >
-                Search
+                Buscar
               </button>
             </form>
 
             <div className="grid grid-cols-2 gap-3 text-sm">
               <div className="rounded-3xl border border-brand/40 bg-brand/15 px-4 py-4">
-                <p className="text-text-muted">Income</p>
+                <p className="text-text-muted">Ingresos</p>
                 <p className="mt-1 text-lg font-semibold text-brand">
                   ${formatMoney(searchTotals.income)}
                 </p>
               </div>
               <div className="rounded-3xl border border-sky-light/40 bg-sky-light/15 px-4 py-4">
-                <p className="text-text-muted">Expense</p>
+                <p className="text-text-muted">Gastos</p>
                 <p className="mt-1 text-lg font-semibold text-sky-light">
                   ${formatMoney(searchTotals.expense)}
                 </p>
@@ -547,9 +695,12 @@ export default function Analysis() {
 
             <div className="space-y-3 text-sm">
               {searchResults.length === 0 ? (
-                <p className="rounded-3xl border border-border/60 bg-base-dark px-4 py-4 text-center text-text-muted">
-                  No results for the selected filters.
-                </p>
+                <EmptyState
+                  icon={Search}
+                  title="Sin resultados"
+                  description="Probá ajustar los filtros o el texto de búsqueda."
+                  className="border-dashed border-border/60 bg-base-dark/70"
+                />
               ) : (
                 searchResults.map((tx) => (
                   <div
@@ -589,10 +740,12 @@ export default function Analysis() {
                 <ChevronLeft size={18} />
               </button>
               <p className="text-sm font-semibold text-text-secondary">
-                {selectedMonth.toLocaleDateString(undefined, {
-                  month: "long",
-                  year: "numeric",
-                })}
+                {capitalize(
+                  selectedMonth.toLocaleDateString("es-AR", {
+                    month: "long",
+                    year: "numeric",
+                  }),
+                )}
               </p>
               <button
                 type="button"
@@ -610,31 +763,66 @@ export default function Analysis() {
               ))}
             </div>
             <div className="grid grid-cols-7 gap-2 text-sm">
-              {calendarDays.map((day, index) =>
-                day ? (
-                  <div
-                    key={`${day.date}-${index}`}
-                    className="rounded-3xl border border-border/40 bg-base-dark px-2 py-3 text-center text-xs text-text-secondary"
+              {calendarDays.map((day, index) => {
+                if (!day) {
+                  return <div key={`empty-${index}`} />;
+                }
+
+                const dayDate = day.date;
+                const isToday = isSameDay(dayDate, today);
+                const isFuture = dayDate > today;
+                const hasExpenses = day.expense > 0;
+                const hasIncomes = day.income > 0;
+                const hasTransactions = hasExpenses || hasIncomes;
+                const isDisabled = isToday || isFuture || !hasTransactions;
+                const dayLabel = dayDate.toLocaleDateString("es-AR", {
+                  weekday: "long",
+                  day: "numeric",
+                  month: "long",
+                });
+                const title = isDisabled
+                  ? isFuture || isToday
+                    ? "Podés consultar días anteriores a hoy."
+                    : `No registraste movimientos el ${dayLabel}`
+                  : day.expense > 0
+                    ? `Ver gastos del ${dayLabel}`
+                    : `Ver ingresos del ${dayLabel}`;
+
+                return (
+                  <button
+                    key={`${toDateKey(dayDate)}-${index}`}
+                    type="button"
+                    onClick={() => handleCalendarDayClick(dayDate)}
+                    disabled={isDisabled}
+                    className={`flex h-20 flex-col items-center justify-center rounded-3xl border border-border/40 bg-base-dark px-2 text-center text-xs transition ${
+                      isDisabled
+                        ? "cursor-not-allowed opacity-40"
+                        : "cursor-pointer hover:border-brand hover:text-text-secondary"
+                    }`}
+                    title={title}
                   >
-                    <p className="text-sm font-semibold text-text-secondary">
-                      {day.date.getDate()}
-                    </p>
-                    <p className="mt-1 text-[11px] text-brand">
-                      +${formatMoney(day.income)}
-                    </p>
-                    <p className="text-[11px] text-sky-light">
-                      -${formatMoney(day.expense)}
-                    </p>
-                  </div>
-                ) : (
-                  <div key={`empty-${index}`} />
-                ),
-              )}
+                    <span
+                      className={`text-sm font-semibold ${
+                        isDisabled ? "text-text-muted" : "text-text-secondary"
+                      }`}
+                    >
+                      {dayDate.getDate()}
+                    </span>
+                    <span
+                      className={`mt-2 h-2 w-2 rounded-full ${
+                        hasExpenses
+                          ? "bg-sky-light"
+                          : hasIncomes
+                            ? "bg-brand"
+                            : "bg-border/50"
+                      }`}
+                    />
+                  </button>
+                );
+              })}
             </div>
             <div className="rounded-3xl border border-border/60 bg-base-dark px-4 py-4 text-sm">
-              <p className="text-text-muted">
-                Monthly balance
-              </p>
+              <p className="text-text-muted">Balance mensual</p>
               <p className="mt-1 text-lg font-semibold text-text-secondary">
                 ${formatMoney(
                   calendarDays.reduce((sum, day) => {
@@ -647,6 +835,8 @@ export default function Analysis() {
           </section>
         )}
       </div>
+
+      <NavBar />
     </div>
   );
 }

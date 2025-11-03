@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft,
   Bell,
+  Plus,
   Wallet,
   ShoppingBag,
   HomeIcon,
   Car,
   Layers,
+  ReceiptText,
 } from "lucide-react";
 import api from "../api/axiosClient";
+import EmptyState from "../components/EmptyState";
+import QuickTransactionForm from "../components/QuickTransactionForm";
 
 const CATEGORY_ICON_MAP = {
   income: Wallet,
@@ -54,9 +58,11 @@ const formatTime = (iso) => {
 
 const monthLabel = (iso) => {
   const date = new Date(iso);
-  return new Intl.DateTimeFormat("en-US", {
+  const formatted = new Intl.DateTimeFormat("es-AR", {
     month: "long",
+    year: "numeric",
   }).format(date);
+  return formatted.charAt(0).toUpperCase() + formatted.slice(1);
 };
 
 const CategoryIcon = ({ category = "" }) => {
@@ -74,52 +80,62 @@ export default function Transactions() {
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [filter, setFilter] = useState("all");
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
   const navigate = useNavigate();
 
-  useEffect(() => {
-    api.get("/summary").then((res) => setSummary(res.data));
-  }, []);
-
-  useEffect(() => {
-    async function loadData() {
-      try {
-        const [expensesRes, incomesRes] = await Promise.all([
-          api.get("/expenses?pageSize=100"),
-          api.get("/incomes?pageSize=100"),
-        ]);
-
-        const expenses =
-          expensesRes.data.items?.map((item) => ({
-            id: `expense-${item.id}`,
-            type: "expense",
-            amount: -Math.abs(Number(item.amount)),
-            description: item.description || item.category?.name || "Expense",
-            date: item.date,
-            category: item.category?.name || "Expense",
-          })) || [];
-
-        const incomes =
-          incomesRes.data.items?.map((item) => ({
-            id: `income-${item.id}`,
-            type: "income",
-            amount: Math.abs(Number(item.amount)),
-            description: item.description || item.category?.name || "Income",
-            date: item.date,
-            category: item.category?.name || "Income",
-          })) || [];
-
-        const merged = [...expenses, ...incomes].sort(
-          (a, b) => new Date(b.date) - new Date(a.date),
-        );
-
-        setTransactions(merged);
-      } catch (error) {
-        console.error("Error loading transactions", error);
-      }
+  const loadSummary = useCallback(async () => {
+    try {
+      const res = await api.get("/summary");
+      setSummary(res.data);
+    } catch (error) {
+      console.error("Error loading summary", error);
     }
-
-    loadData();
   }, []);
+
+  const loadTransactions = useCallback(async () => {
+    try {
+      const [expensesRes, incomesRes] = await Promise.all([
+        api.get("/expenses?pageSize=100"),
+        api.get("/incomes?pageSize=100"),
+      ]);
+
+      const expenses =
+        expensesRes.data.items?.map((item) => ({
+          id: `expense-${item.id}`,
+          type: "expense",
+          amount: -Math.abs(Number(item.amount)),
+          description: item.description || item.category?.name || "Gasto",
+          date: item.date,
+          category: item.category?.name || "Gasto",
+        })) || [];
+
+      const incomes =
+        incomesRes.data.items?.map((item) => ({
+          id: `income-${item.id}`,
+          type: "income",
+          amount: Math.abs(Number(item.amount)),
+          description: item.description || item.category?.name || "Ingreso",
+          date: item.date,
+          category: item.category?.name || "Ingreso",
+        })) || [];
+
+      const merged = [...expenses, ...incomes].sort(
+        (a, b) => new Date(b.date) - new Date(a.date),
+      );
+
+      setTransactions(merged);
+    } catch (error) {
+      console.error("Error loading transactions", error);
+    }
+  }, []);
+
+  useEffect(() => {
+    loadSummary();
+  }, [loadSummary]);
+
+  useEffect(() => {
+    loadTransactions();
+  }, [loadTransactions]);
 
   const filteredTransactions = useMemo(() => {
     if (filter === "all") return transactions;
@@ -142,6 +158,12 @@ export default function Transactions() {
   const totalExpense = formatMoney(summary?.totalExpense);
   const balance = formatMoney(summary?.balance);
 
+  const handleQuickAddSuccess = useCallback(() => {
+    loadSummary();
+    loadTransactions();
+    setShowQuickAdd(false);
+  }, [loadSummary, loadTransactions]);
+
   return (
     <div className="relative min-h-screen bg-base-darkest text-text-primary">
       <div className="absolute inset-0 bg-gradient-hero opacity-40" />
@@ -151,19 +173,32 @@ export default function Transactions() {
             type="button"
             onClick={() => navigate(-1)}
             className="rounded-full border border-border/60 bg-base-card p-2 text-text-secondary"
-            title="Back"
+            title="Volver"
           >
             <ArrowLeft size={18} />
           </button>
-          <h1 className="text-lg font-semibold text-text-secondary">Transaction</h1>
-          <button className="rounded-full border border-border/60 bg-base-card p-2 text-text-secondary">
-            <Bell size={18} />
-          </button>
+          <h1 className="text-lg font-semibold text-text-secondary">Movimientos</h1>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowQuickAdd(true)}
+              className="rounded-full border border-border/60 bg-base-card p-2 text-text-secondary transition hover:border-brand"
+              title="Registrar movimiento"
+            >
+              <Plus size={18} />
+            </button>
+            <button
+              className="rounded-full border border-border/60 bg-base-card p-2 text-text-secondary"
+              title="Notificaciones"
+            >
+              <Bell size={18} />
+            </button>
+          </div>
         </header>
 
         <section className="rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
           <p className="text-xs uppercase tracking-[0.35em] text-text-muted">
-            Total Balance
+            Balance total
           </p>
           <p className="mt-2 text-3xl font-display font-semibold">
             ${balance}
@@ -179,7 +214,7 @@ export default function Transactions() {
                   : "border-border/60 bg-base-dark text-text-secondary"
               }`}
             >
-              <p className="text-xs uppercase tracking-wide opacity-80">Income</p>
+              <p className="text-xs uppercase tracking-wide opacity-80">Ingresos</p>
               <p className="mt-1 text-lg font-semibold">
                 ${totalIncome}
               </p>
@@ -193,7 +228,7 @@ export default function Transactions() {
                   : "border-border/60 bg-base-dark text-text-secondary"
               }`}
             >
-              <p className="text-xs uppercase tracking-wide opacity-80">Expense</p>
+              <p className="text-xs uppercase tracking-wide opacity-80">Gastos</p>
               <p className="mt-1 text-lg font-semibold">
                 ${totalExpense}
               </p>
@@ -205,21 +240,28 @@ export default function Transactions() {
             onClick={() => setFilter("all")}
             className="mt-4 w-full rounded-3xl border border-border/60 bg-base-dark px-5 py-3 text-sm font-medium text-text-muted transition hover:bg-base-dark/70"
           >
-            Show All Transactions
+            Ver todos los movimientos
           </button>
         </section>
 
         <section className="mt-6 space-y-6">
           {groupedByMonth.length === 0 ? (
-            <p className="text-center text-sm text-text-muted">
-              No transactions found for this filter.
-            </p>
+            <EmptyState
+              icon={ReceiptText}
+              title="Sin movimientos en este filtro"
+              description="Probá cambiar el tipo de movimiento o cargá un ingreso/gasto nuevo."
+              actionLabel="Registrar movimiento"
+              onAction={() => setShowQuickAdd(true)}
+              className="border-dashed border-border/60 bg-base-card/70"
+            />
           ) : (
             groupedByMonth.map(([month, items]) => (
               <div key={month} className="space-y-3">
                 <div className="flex items-center justify-between text-sm text-text-secondary">
                   <p className="font-semibold">{month}</p>
-                  <span className="text-text-muted">{items.length} records</span>
+                  <span className="text-text-muted">
+                    {items.length} movimiento{items.length === 1 ? "" : "s"}
+                  </span>
                 </div>
                 <div className="space-y-2">
                   {items.map((tx) => (
@@ -253,6 +295,18 @@ export default function Transactions() {
           )}
         </section>
       </div>
+
+      {showQuickAdd && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-darkest/80 backdrop-blur">
+          <div className="w-full max-w-md px-5">
+            <QuickTransactionForm
+              variant="modal"
+              onSuccess={handleQuickAddSuccess}
+              onCancel={() => setShowQuickAdd(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }

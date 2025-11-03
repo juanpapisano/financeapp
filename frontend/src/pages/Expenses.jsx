@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import DatePicker from "react-datepicker";
 import "react-datepicker/dist/react-datepicker.css";
+import { ReceiptText } from "lucide-react";
 import api from "../api/axiosClient";
+import EmptyState from "../components/EmptyState";
 
 export default function Expenses() {
   const [expenses, setExpenses] = useState([]);
@@ -309,7 +311,13 @@ export default function Expenses() {
 
       <h2 className="text-lg font-semibold mb-2">Listado</h2>
       {expenses.length === 0 ? (
-        <p className="text-gray-400">No hay gastos registrados.</p>
+        <EmptyState
+          icon={ReceiptText}
+          title="No registraste gastos todavía"
+          description="Completá el formulario para cargar tu primer gasto."
+          className="border-dashed border-border/70 bg-primary/30"
+          tone="sky"
+        />
       ) : (
       <div className="bg-secondary rounded-xl p-4 shadow-md">
         <table className="w-full text-sm">
