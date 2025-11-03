@@ -43,7 +43,7 @@ export const loginUser = async (req, res, next) => {
 
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1d' });
     res.status(200).json({
-      message: "Login ok",
+      message: 'Inicio de sesión correcto',
       token,
       user: {
         id: user.id,
@@ -111,7 +111,7 @@ export const googleAuth = async (req, res, next) => {
     const token = jwt.sign({ id: user.id }, process.env.JWT_SECRET, { expiresIn: '1d' });
 
     res.json({
-      message: 'Login ok',
+      message: 'Inicio de sesión correcto',
       token,
       user: {
         id: user.id,
