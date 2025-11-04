@@ -1,8 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
-  Settings,
-  LogOut,
   Bell,
   Wallet,
   ShoppingBag,
@@ -12,6 +10,7 @@ import {
   Plus,
   ReceiptText,
   Sparkles,
+  Building2,
 } from "lucide-react";
 import api from "../api/axiosClient";
 import NavBar from "../components/NavBar";
@@ -23,7 +22,7 @@ export default function Dashboard() {
   const [summary, setSummary] = useState(null);
   const [transactions, setTransactions] = useState([]);
   const [selectedRange, setSelectedRange] = useState("Monthly");
-  const [menuOpen, setMenuOpen] = useState(false);
+  const [quickActionsOpen, setQuickActionsOpen] = useState(false);
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [entitySummaries, setEntitySummaries] = useState([]);
   const [entitiesLoading, setEntitiesLoading] = useState(true);
@@ -170,16 +169,6 @@ export default function Dashboard() {
     setShowQuickAdd(false);
   }, [loadSummary, loadTransactions, loadEntitySummaries]);
 
-  const handleLogout = () => {
-    localStorage.removeItem("token");
-    localStorage.removeItem("userName");
-    localStorage.removeItem("userId");
-    localStorage.removeItem("userEmail");
-    sessionStorage.clear();
-    navigate("/", { replace: true });
-    window.location.reload();
-  };
-
   const userName = localStorage.getItem("token")
     ? localStorage.getItem("userName")
     : "Invitado";
@@ -213,7 +202,20 @@ export default function Dashboard() {
     return "Buenas noches";
   }, []);
 
-  const openQuickAdd = () => setShowQuickAdd(true);
+  const toggleQuickActions = () => {
+    setQuickActionsOpen((prev) => !prev);
+    setShowQuickAdd(false);
+  };
+
+  const handleQuickActionNavigate = (path, state) => {
+    setQuickActionsOpen(false);
+    navigate(path, state ? { state } : undefined);
+  };
+
+  const openQuickAdd = () => {
+    setQuickActionsOpen(false);
+    setShowQuickAdd(true);
+  };
 
   const expenseBreakdown = useMemo(() => {
     if (!summary?.expenseByCategory) return [];
@@ -281,46 +283,49 @@ export default function Dashboard() {
           </div>
           <div className="flex items-center gap-3">
             <button
-              onClick={openQuickAdd}
+              type="button"
+              onClick={toggleQuickActions}
               className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
-              title="Agregar movimiento"
+              title="Acciones rápidas"
             >
               <Plus size={18} />
             </button>
             <button
-              onClick={() => setMenuOpen((prev) => !prev)}
-              className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
-              title="Configuración"
-            >
-              <Settings size={18} />
-            </button>
-            <button
+              type="button"
               className="rounded-full border border-border/60 bg-base-card px-3 py-2 text-text-secondary transition hover:border-brand"
               title="Notificaciones"
             >
               <Bell size={18} />
             </button>
           </div>
-          {menuOpen && (
-            <div className="absolute right-5 top-16 w-48 rounded-3xl border border-border/60 bg-base-card/95 p-3 shadow-soft">
-              <button
-                onClick={() => {
-                  navigate("/categories");
-                  setMenuOpen(false);
-                }}
-                className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-text-secondary transition hover:bg-base-dark"
-              >
-                <Layers size={16} /> Categorías
-              </button>
-              <button
-                onClick={() => {
-                  handleLogout();
-                  setMenuOpen(false);
-                }}
-                className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-medium text-brand transition hover:bg-base-dark"
-              >
-                <LogOut size={16} /> Cerrar sesión
-              </button>
+          {quickActionsOpen && (
+            <div className="absolute right-5 top-16 w-56 rounded-3xl border border-border/60 bg-base-card/95 p-3 shadow-soft">
+              <p className="px-2 text-[11px] uppercase tracking-wide text-text-muted">
+                Crear nuevo
+              </p>
+              <div className="mt-2 flex flex-col gap-2">
+                <button
+                  type="button"
+                  onClick={openQuickAdd}
+                  className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-base-dark"
+                >
+                  <ReceiptText size={16} /> Movimiento
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickActionNavigate("/entities", { focus: "CREATE" })}
+                  className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-base-dark"
+                >
+                  <Building2 size={16} /> Entidad
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleQuickActionNavigate("/categories")}
+                  className="flex w-full items-center gap-2 rounded-2xl px-4 py-2 text-sm font-semibold text-text-secondary transition hover:bg-base-dark"
+                >
+                  <Layers size={16} /> Categoría
+                </button>
+              </div>
             </div>
           )}
         </header>

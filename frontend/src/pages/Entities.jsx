@@ -1,17 +1,163 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { Users, ReceiptText } from "lucide-react";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
+import {
+  ArrowLeft,
+  Building2,
+  Layers,
+  Sparkles,
+  Users,
+  Wallet,
+  ShoppingBag,
+  HomeIcon,
+  Car,
+  Utensils,
+  X,
+} from "lucide-react";
 import api from "../api/axiosClient";
 import EmptyState from "../components/EmptyState";
+import NavBar from "../components/NavBar";
 
 const SHARE_TOTAL = 100;
 
-function formatCurrency(value) {
-  const amount = Number.parseFloat(value ?? 0);
-  if (Number.isNaN(amount)) return "0.00";
-  return amount.toFixed(2);
+const PERIOD_OPTIONS = [
+  { key: "DAILY", label: "Diario" },
+  { key: "WEEKLY", label: "Semanal" },
+  { key: "MONTHLY", label: "Mensual" },
+];
+
+const CATEGORY_ICON_MAP = {
+  groceries: ShoppingBag,
+  pantry: ShoppingBag,
+  food: Utensils,
+  rent: HomeIcon,
+  housing: HomeIcon,
+  transport: Car,
+  fuel: Car,
+  income: Wallet,
+  default: Layers,
+};
+
+const CATEGORY_COLOR_MAP = {
+  groceries: "bg-sky-light/20 text-sky-light",
+  pantry: "bg-sky-light/20 text-sky-light",
+  food: "bg-sky-light/20 text-sky-light",
+  rent: "bg-brand/25 text-brand",
+  housing: "bg-brand/25 text-brand",
+  transport: "bg-sky-light/25 text-sky-light",
+  fuel: "bg-sky-light/25 text-sky-light",
+  income: "bg-brand/25 text-brand",
+  default: "bg-base-dark text-text-secondary",
+};
+
+function formatMoney(value = 0) {
+  return Number(value || 0).toLocaleString("es-AR", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  });
+}
+
+function formatDateParts(dateString) {
+  const date = new Date(dateString);
+  return {
+    time: date.toLocaleTimeString("es-AR", { hour: "2-digit", minute: "2-digit" }),
+    label: date.toLocaleDateString("es-AR", {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+    }),
+  };
+}
+
+function getCategoryBadge(category = "") {
+  const key = category.toLowerCase();
+  const Icon = CATEGORY_ICON_MAP[key] || CATEGORY_ICON_MAP.default;
+  const classes = CATEGORY_COLOR_MAP[key] || CATEGORY_COLOR_MAP.default;
+  return { Icon, classes };
+}
+
+function aggregateEntityTotals(expenses = []) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const week = new Date(today);
+  week.setDate(today.getDate() - 6);
+  const month = new Date(now.getFullYear(), now.getMonth(), 1);
+
+  const totals = { daily: 0, weekly: 0, monthly: 0 };
+  expenses.forEach((expense) => {
+    const value = Number(expense.amount || 0);
+    const date = new Date(expense.date);
+    if (date >= today) totals.daily += value;
+    if (date >= week) totals.weekly += value;
+    if (date >= month) totals.monthly += value;
+  });
+  return totals;
+}
+
+function filterByPeriod(expenses = [], period = "MONTHLY") {
+  const now = new Date();
+  let start;
+  if (period === "DAILY") {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  } else if (period === "WEEKLY") {
+    start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 6);
+  } else {
+    start = new Date(now.getFullYear(), now.getMonth(), 1);
+  }
+  return expenses.filter((expense) => new Date(expense.date) >= start);
+}
+
+function validateEntityForm(form, currentUserEmail, setError) {
+  if (!form.name.trim()) {
+    setError("La entidad necesita un nombre");
+    return false;
+  }
+
+  const members = form.members.filter((member) => member.email.trim());
+  if (members.length < 2) {
+    setError("Agregá al menos dos integrantes para compartir gastos");
+    return false;
+  }
+
+  const seen = new Set();
+  let totalShare = 0;
+  for (const member of members) {
+    const email = member.email.trim().toLowerCase();
+    if (!email) {
+      setError("Ingresá el email de cada integrante");
+      return false;
+    }
+    if (seen.has(email)) {
+      setError("No se permiten emails duplicados en la entidad");
+      return false;
+    }
+    seen.add(email);
+
+    const shareValue = Number(member.share);
+    if (Number.isNaN(shareValue) || shareValue < 0) {
+      setError("Ingresá porcentajes válidos (0 a 100)");
+      return false;
+    }
+    totalShare += shareValue;
+  }
+
+  if (Math.abs(totalShare - SHARE_TOTAL) > 0.01) {
+    setError("La suma de los porcentajes debe ser 100");
+    return false;
+  }
+
+  if (
+    !members.some((member) => member.email.trim().toLowerCase() === currentUserEmail)
+  ) {
+    setError("Incluí tu propio email para asignarte un porcentaje");
+    return false;
+  }
+
+  return true;
 }
 
 export default function Entities() {
+  const navigate = useNavigate();
+  const location = useLocation();
   const currentUserEmail = useMemo(
     () => (localStorage.getItem("userEmail") || "").toLowerCase(),
     [],
@@ -28,73 +174,125 @@ export default function Entities() {
   );
 
   const [entities, setEntities] = useState([]);
-  const [expanded, setExpanded] = useState(null);
   const [entityExpenses, setEntityExpenses] = useState({});
   const [loadingExpenses, setLoadingExpenses] = useState({});
-
-  const [newEntity, setNewEntity] = useState({
+  const [entityFilters, setEntityFilters] = useState({});
+  const [selectedEntityId, setSelectedEntityId] = useState(null);
+  const [showEntityModal, setShowEntityModal] = useState(false);
+  const [modalMode, setModalMode] = useState("create");
+  const [entityForm, setEntityForm] = useState({
+    id: null,
     name: "",
     members: defaultMembers,
   });
-  const [newEntityLoading, setNewEntityLoading] = useState(false);
-  const [newEntityError, setNewEntityError] = useState("");
+  const [entityFormLoading, setEntityFormLoading] = useState(false);
+  const [entityFormError, setEntityFormError] = useState("");
 
-  const [memberForms, setMemberForms] = useState({});
-  const [shareEdits, setShareEdits] = useState({});
-  const newEntityRef = useRef(null);
-
-  useEffect(() => {
-    fetchEntities();
-  }, []);
-
-  useEffect(() => {
-    const formState = {};
-    const shareState = {};
-    entities.forEach((entity) => {
-      formState[entity.id] = { email: "", share: "" };
-      entity.members.forEach((member) => {
-        shareState[member.id] = member.share.toString();
-      });
-    });
-    setMemberForms(formState);
-    setShareEdits(shareState);
-  }, [entities]);
-
-  const fetchEntities = async () => {
+  const fetchEntities = useCallback(async () => {
     try {
       const res = await api.get("/entities");
-      setEntities(res.data);
-    } catch (err) {
-      console.error(err);
+      setEntities(res.data || []);
+    } catch (error) {
+      console.error("Error fetching entities", error);
     }
-  };
+  }, []);
 
-  const fetchEntityExpenses = async (entityId) => {
+  const fetchEntityExpenses = useCallback(async (entityId) => {
     setLoadingExpenses((prev) => ({ ...prev, [entityId]: true }));
     try {
       const res = await api.get(`/entities/${entityId}/expenses`);
-      setEntityExpenses((prev) => ({ ...prev, [entityId]: res.data }));
-    } catch (err) {
-      console.error(err);
-      alert("No se pudieron cargar los gastos de la entidad");
+      setEntityExpenses((prev) => ({ ...prev, [entityId]: res.data || [] }));
+    } catch (error) {
+      console.error("Error fetching entity expenses", error);
     } finally {
       setLoadingExpenses((prev) => ({ ...prev, [entityId]: false }));
     }
+  }, []);
+
+  useEffect(() => {
+    fetchEntities();
+  }, [fetchEntities]);
+
+  useEffect(() => {
+    if (entities.length > 0 && !selectedEntityId) {
+      setSelectedEntityId(entities[0].id);
+    }
+  }, [entities, selectedEntityId]);
+
+  useEffect(() => {
+    entities.forEach((entity) => {
+      if (!entityExpenses[entity.id] && !loadingExpenses[entity.id]) {
+        fetchEntityExpenses(entity.id);
+      }
+      if (!entityFilters[entity.id]) {
+        setEntityFilters((prev) => ({ ...prev, [entity.id]: "MONTHLY" }));
+      }
+    });
+  }, [entities, entityExpenses, loadingExpenses, entityFilters, fetchEntityExpenses]);
+
+  useEffect(() => {
+    if (location.state?.focus === "CREATE") {
+      handleOpenCreate();
+    }
+  }, [location.state]);
+
+  const selectedEntity = useMemo(
+    () => entities.find((entity) => entity.id === selectedEntityId) || null,
+    [entities, selectedEntityId],
+  );
+
+  const allExpenses = useMemo(
+    () => Object.values(entityExpenses).flat(),
+    [entityExpenses],
+  );
+
+  const globalTotals = useMemo(() => aggregateEntityTotals(allExpenses), [allExpenses]);
+
+  const totalMembers = useMemo(
+    () => entities.reduce((sum, entity) => sum + (entity.members?.length || 0), 0),
+    [entities],
+  );
+
+  const handleOpenCreate = useCallback(() => {
+    setEntityForm({
+      id: null,
+      name: "",
+      members: defaultMembers,
+    });
+    setModalMode("create");
+    setEntityFormError("");
+    setShowEntityModal(true);
+  }, [defaultMembers]);
+
+  const handleOpenEdit = useCallback(
+    (entity) => {
+      setEntityForm({
+        id: entity.id,
+        name: entity.name,
+        members:
+          entity.members?.map((member) => ({
+            email: member.user.email,
+            share: member.share.toString(),
+          })) || defaultMembers,
+      });
+      setModalMode("edit");
+      setEntityFormError("");
+      setShowEntityModal(true);
+    },
+    [defaultMembers],
+  );
+
+  const handleCloseModal = useCallback(() => {
+    setShowEntityModal(false);
+    setEntityFormError("");
+  }, []);
+
+  const handleEntityFieldChange = (key, value) => {
+    setEntityForm((prev) => ({ ...prev, [key]: value }));
   };
 
-  const toggleExpanded = async (entityId) => {
-    if (expanded === entityId) {
-      setExpanded(null);
-      return;
-    }
-    setExpanded(entityId);
-    if (!entityExpenses[entityId]) {
-      await fetchEntityExpenses(entityId);
-    }
-  };
-
-  const handleNewEntityMemberChange = (index, key, value) => {
-    setNewEntity((prev) => {
+  const handleMemberFieldChange = (index, key, value) => {
+    setEntityForm((prev) => {
       const members = [...prev.members];
       members[index] = { ...members[index], [key]: value };
       return { ...prev, members };
@@ -102,484 +300,441 @@ export default function Entities() {
   };
 
   const addMemberRow = () => {
-    setNewEntity((prev) => ({
+    setEntityForm((prev) => ({
       ...prev,
       members: [...prev.members, { email: "", share: "" }],
     }));
   };
 
   const removeMemberRow = (index) => {
-    setNewEntity((prev) => ({
+    setEntityForm((prev) => ({
       ...prev,
       members: prev.members.filter((_, idx) => idx !== index),
     }));
   };
 
-  const validateNewEntity = () => {
-    if (!newEntity.name.trim()) {
-      setNewEntityError("La entidad necesita un nombre");
-      return false;
-    }
-
-    const members = newEntity.members.filter((member) => member.email.trim());
-    if (members.length < 2) {
-      setNewEntityError("Agregá al menos dos integrantes para compartir gastos");
-      return false;
-    }
-
-    const seen = new Set();
-    for (const member of members) {
-      const email = member.email.trim().toLowerCase();
-      if (!email) {
-        setNewEntityError("Ingresá el email de cada integrante");
-        return false;
-      }
-      if (seen.has(email)) {
-        setNewEntityError("No se permiten emails duplicados en la entidad");
-        return false;
-      }
-      seen.add(email);
-
-      const shareValue = Number(member.share);
-      if (Number.isNaN(shareValue) || shareValue < 0) {
-        setNewEntityError("Ingresá porcentajes válidos (0 a 100)");
-        return false;
-      }
-    }
-
-    const totalShare = members.reduce(
-      (sum, member) => sum + Number(member.share || 0),
-      0,
-    );
-
-    if (Math.abs(totalShare - SHARE_TOTAL) > 0.01) {
-      setNewEntityError("La suma de los porcentajes debe ser 100");
-      return false;
-    }
-
-    if (!members.some((member) => member.email.trim().toLowerCase() === currentUserEmail)) {
-      setNewEntityError("Incluí tu propio email para asignarte un porcentaje");
-      return false;
-    }
-
-    return true;
-  };
-
-  const handleCreateEntity = async (event) => {
+  const handleSubmitEntityForm = async (event) => {
     event.preventDefault();
-    setNewEntityError("");
-    if (!validateNewEntity()) return;
+    setEntityFormError("");
+    if (!validateEntityForm(entityForm, currentUserEmail, setEntityFormError)) {
+      return;
+    }
 
-    setNewEntityLoading(true);
+    const payload = {
+      name: entityForm.name.trim(),
+      members: entityForm.members
+        .filter((member) => member.email.trim())
+        .map((member) => ({
+          email: member.email.trim().toLowerCase(),
+          share: Number(member.share),
+        })),
+    };
+
+    setEntityFormLoading(true);
     try {
-      const payload = {
-        name: newEntity.name.trim(),
-        members: newEntity.members
-          .filter((member) => member.email.trim())
-          .map((member) => ({
-            email: member.email.trim().toLowerCase(),
-            share: Number(member.share),
-          })),
-      };
-
-      await api.post("/entities", payload);
-      setNewEntity({ name: "", members: defaultMembers });
+      if (modalMode === "create") {
+        await api.post("/entities", payload);
+      } else if (entityForm.id) {
+        await api.put(`/entities/${entityForm.id}`, payload);
+      }
       await fetchEntities();
-    } catch (err) {
-      console.error(err);
-      setNewEntityError(err.response?.data?.message || "No se pudo crear la entidad");
+      handleCloseModal();
+    } catch (error) {
+      console.error("Error saving entity", error);
+      setEntityFormError(
+        error.response?.data?.message || "No se pudo guardar la entidad",
+      );
     } finally {
-      setNewEntityLoading(false);
+      setEntityFormLoading(false);
     }
   };
 
-  const handleMemberFormChange = (entityId, key, value) => {
-    setMemberForms((prev) => ({
-      ...prev,
-      [entityId]: {
-        ...prev[entityId],
-        [key]: value,
-      },
-    }));
-  };
-
-  const handleAddExistingMember = async (entityId) => {
-    const form = memberForms[entityId];
-    if (!form) return;
-    const email = form.email.trim().toLowerCase();
-    const share = Number(form.share);
-    if (!email || Number.isNaN(share)) {
-      alert("Ingresá email y porcentaje válido");
-      return;
-    }
-
-    try {
-      await api.post(`/entities/${entityId}/members`, { email, share });
-      setMemberForms((prev) => ({
-        ...prev,
-        [entityId]: { email: "", share: "" },
-      }));
-      await fetchEntities();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "No se pudo agregar al integrante");
-    }
-  };
-
-  const handleShareEditChange = (memberId, value) => {
-    setShareEdits((prev) => ({ ...prev, [memberId]: value }));
-  };
-
-  const handleUpdateShare = async (entityId, memberId) => {
-    const rawValue = shareEdits[memberId];
-    if (rawValue === undefined || rawValue === "") {
-      alert("Ingresá un porcentaje válido");
-      return;
-    }
-
-    const value = Number(rawValue);
-    if (Number.isNaN(value)) {
-      alert("Ingresá un porcentaje válido");
-      return;
-    }
-
-    try {
-      await api.patch(`/entities/${entityId}/members/${memberId}`, { share: value });
-      await fetchEntities();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "No se pudo actualizar el porcentaje");
-    }
-  };
-
-  const handleRemoveMember = async (entityId, memberId) => {
-    if (!confirm("¿Eliminar integrante? Ajustaremos los porcentajes restantes automáticamente.")) {
-      return;
-    }
-    try {
-      await api.delete(`/entities/${entityId}/members/${memberId}`);
-      await fetchEntities();
-    } catch (err) {
-      console.error(err);
-      alert(err.response?.data?.message || "No se pudo eliminar al integrante");
-    }
-  };
-
-  const renderExpenseBreakdown = (expense) => {
-    const payerRecord = expense.personalExpenses.find(
-      (item) => item.isPayer && item.share === null,
-    );
-    const breakdown = expense.personalExpenses.filter((item) => item.share !== null);
+  const renderEntityModal = () => {
+    if (!showEntityModal) return null;
     return (
-      <div className="border border-gray-700 rounded-lg p-4 space-y-3" key={expense.id}>
-        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div>
-            <p className="font-semibold">
-              {expense.description || "Gasto sin descripción"}
-            </p>
-            <p className="text-gray-400 text-sm">
-              {new Date(expense.date).toLocaleDateString()} · Pagado por{" "}
-              {payerRecord
-                ? `${payerRecord.user.name} (${payerRecord.user.email})`
-                : `${expense.addedBy.name} (${expense.addedBy.email})`}
-            </p>
+      <div className="fixed inset-0 z-50 flex items-center justify-center bg-base-darkest/80 px-5 backdrop-blur">
+        <div className="w-full max-w-md rounded-4xl border border-border/60 bg-base-card/95 p-6 shadow-soft">
+          <div className="flex items-center justify-between">
+            <h2 className="text-lg font-semibold text-text-secondary">
+              {modalMode === "create" ? "Crear entidad" : "Editar entidad"}
+            </h2>
+            <button
+              type="button"
+              onClick={handleCloseModal}
+              className="rounded-full border border-border/60 bg-base-dark p-2 text-text-muted hover:text-text-secondary"
+            >
+              <X size={16} />
+            </button>
           </div>
-          <div className="text-right">
-            <p className="text-sm text-gray-400">Total</p>
-            <p className="text-lg font-bold text-blue-400">
-              ${formatCurrency(expense.amount)}
-            </p>
-          </div>
-        </div>
-        <div className="bg-primary/40 rounded-lg p-3 space-y-2">
-          <p className="text-xs text-gray-400 uppercase tracking-wide">
-            Distribución del gasto
-          </p>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 text-sm">
-            {breakdown.map((item) => {
-              const isPayer = item.isPayer;
-              const owed = isPayer
-                ? Number(expense.amount) - Number(item.amount)
-                : Number(item.amount);
-              const label = isPayer
-                ? `Ya pagó ${formatCurrency(item.amount)} · Le deben ${formatCurrency(
-                    Math.max(owed, 0),
-                  )}`
-                : `Debe ${formatCurrency(owed)} al pagador`;
-              return (
-                <div
-                  key={item.id}
-                  className="flex flex-col border border-gray-700 rounded-md p-3"
+
+          <form onSubmit={handleSubmitEntityForm} className="mt-4 space-y-5">
+            <div>
+              <label className="text-xs font-semibold uppercase tracking-wide text-text-muted">
+                Nombre
+              </label>
+              <input
+                type="text"
+                value={entityForm.name}
+                onChange={(event) => handleEntityFieldChange("name", event.target.value)}
+                className="mt-2 w-full rounded-3xl border border-border bg-base-dark px-4 py-3 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                placeholder="Ej: Casa Palermo"
+                required
+              />
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-semibold text-text-secondary">Integrantes</p>
+                <button
+                  type="button"
+                  onClick={addMemberRow}
+                  className="text-sm font-semibold text-brand hover:text-brand/80"
                 >
-                  <span className="font-medium">
-                    {item.user.name} ({item.user.email})
-                  </span>
-                  <span className="text-gray-300">
-                    {Number(item.share).toFixed(2)}% · ${formatCurrency(item.amount)}
-                  </span>
-                  <span className="text-xs text-gray-400">{label}</span>
-                </div>
-              );
-            })}
-          </div>
+                  + Agregar
+                </button>
+              </div>
+              <div className="space-y-4">
+                {entityForm.members.map((member, index) => (
+                  <div
+                    key={`entity-form-member-${index}`}
+                    className="grid grid-cols-1 gap-3 rounded-3xl border border-border/60 bg-base-dark/70 p-4 md:grid-cols-3"
+                  >
+                    <div className="md:col-span-2">
+                      <label className="text-[11px] uppercase tracking-wide text-text-muted">
+                        Email
+                      </label>
+                      <input
+                        type="email"
+                        value={member.email}
+                        onChange={(event) =>
+                          handleMemberFieldChange(index, "email", event.target.value)
+                        }
+                        className="mt-1 w-full rounded-2xl border border-border bg-base-card px-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                        placeholder="usuario@mail.com"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="text-[11px] uppercase tracking-wide text-text-muted">
+                        Porcentaje
+                      </label>
+                      <input
+                        type="number"
+                        min="0"
+                        max="100"
+                        step="0.01"
+                        value={member.share}
+                        onChange={(event) =>
+                          handleMemberFieldChange(index, "share", event.target.value)
+                        }
+                        className="mt-1 w-full rounded-2xl border border-border bg-base-card px-4 py-2 text-sm text-text-primary placeholder:text-text-muted focus:border-brand focus:outline-none focus:ring-2 focus:ring-brand/40"
+                        required
+                      />
+                    </div>
+                    {entityForm.members.length > 1 && (
+                      <div className="flex items-end justify-end">
+                        <button
+                          type="button"
+                          onClick={() => removeMemberRow(index)}
+                          className="text-xs font-semibold text-red-400 hover:text-red-300"
+                        >
+                          Quitar
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-text-muted">
+                Asegurate de que los porcentajes sumen 100% para mantener los balances correctos.
+              </p>
+            </div>
+
+            {entityFormError && (
+              <p className="rounded-3xl border border-red-400/60 bg-red-500/10 px-4 py-2 text-xs text-red-200">
+                {entityFormError}
+              </p>
+            )}
+
+            <button
+              type="submit"
+              disabled={entityFormLoading}
+              className="w-full rounded-3xl bg-brand px-5 py-3 text-sm font-semibold text-base-dark shadow-card transition hover:bg-brand/90 disabled:opacity-60"
+            >
+              {entityFormLoading
+                ? "Guardando..."
+                : modalMode === "create"
+                  ? "Crear entidad"
+                  : "Guardar cambios"}
+            </button>
+          </form>
         </div>
       </div>
     );
   };
 
-  return (
-    <div className="min-h-screen bg-primary text-white p-6 space-y-8">
-      <section
-        ref={newEntityRef}
-        className="bg-secondary rounded-2xl p-6 shadow-md space-y-4"
-      >
-        <h1 className="text-2xl font-bold">Entidades compartidas</h1>
-        <p className="text-gray-400">
-          Creá grupos para dividir gastos. Cada integrante recibe un porcentaje del total.
-        </p>
-
-        <form onSubmit={handleCreateEntity} className="space-y-4">
-          <div>
-            <label className="text-sm text-gray-400">Nombre de la entidad</label>
-            <input
-              type="text"
-              value={newEntity.name}
-              onChange={(event) =>
-                setNewEntity((prev) => ({ ...prev, name: event.target.value }))
-              }
-              className="mt-1 w-full rounded-md bg-primary border border-gray-600 p-2 text-white focus:border-accent-from focus:ring-0"
-              placeholder="Ej: Casa Palermo"
-              required
-            />
-          </div>
-
-          <div className="space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-semibold">Integrantes</h2>
-              <button
-                type="button"
-                onClick={addMemberRow}
-                className="text-sm text-blue-400 hover:underline"
-              >
-                + Agregar integrante
-              </button>
-            </div>
-
-            <div className="space-y-3">
-              {newEntity.members.map((member, index) => (
-                <div
-                  key={index}
-                  className="grid grid-cols-1 md:grid-cols-3 gap-4 items-end"
-                >
-                  <div>
-                    <label className="text-xs text-gray-400 uppercase tracking-wide">
-                      Email
-                    </label>
-                    <input
-                      type="email"
-                      value={member.email}
-                      onChange={(event) =>
-                        handleNewEntityMemberChange(index, "email", event.target.value)
-                      }
-                      className="mt-1 w-full rounded-md bg-primary border border-gray-600 p-2 text-white focus:border-accent-from focus:ring-0"
-                      placeholder="usuario@mail.com"
-                      required
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-gray-400 uppercase tracking-wide">
-                      Porcentaje (%)
-                    </label>
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      value={member.share}
-                      onChange={(event) =>
-                        handleNewEntityMemberChange(index, "share", event.target.value)
-                      }
-                      className="mt-1 w-full rounded-md bg-primary border border-gray-600 p-2 text-white focus:border-accent-from focus:ring-0"
-                      required
-                    />
-                  </div>
-                  <div className="flex justify-end">
-                    {newEntity.members.length > 1 && (
-                      <button
-                        type="button"
-                        onClick={() => removeMemberRow(index)}
-                        className="text-sm text-red-400 hover:underline"
-                      >
-                        Quitar
-                      </button>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          {newEntityError && <p className="text-sm text-red-400">{newEntityError}</p>}
-
-          <button
-            type="submit"
-            disabled={newEntityLoading}
-            className="px-6 py-2 rounded-md font-semibold bg-gradient-accent hover:opacity-90 transition"
-          >
-            {newEntityLoading ? "Guardando..." : "Crear entidad"}
-          </button>
-        </form>
-      </section>
-
-      <section className="space-y-4">
-        <h2 className="text-xl font-semibold">Tus entidades</h2>
-        {entities.length === 0 ? (
+  const renderEntityDetails = () => {
+    if (!selectedEntity) {
+      return (
+        <section className="mt-6">
           <EmptyState
-            icon={Users}
-            title="Aún no tenés entidades"
-            description="Agrupá gastos compartidos creando tu primera entidad."
-            actionLabel="Crear entidad"
-            onAction={() => newEntityRef.current?.scrollIntoView({ behavior: "smooth" })}
-            className="border-dashed border-border/70 bg-secondary/40"
+            icon={Sparkles}
+            title="Elegí una entidad"
+            description="Seleccioná una entidad para ver sus miembros y movimientos."
+            className="border-dashed border-border/60 bg-base-card/80"
           />
-        ) : (
-          <div className="space-y-6">
-            {entities.map((entity) => (
-              <div key={entity.id} className="bg-secondary rounded-2xl p-6 shadow-md space-y-5">
-                <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
-                  <div>
-                    <h3 className="text-lg font-semibold">{entity.name}</h3>
-                    <p className="text-gray-400 text-sm">
-                      Integrantes: {entity.members.length} · Total 100%
-                    </p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => toggleExpanded(entity.id)}
-                    className="text-sm text-blue-400 hover:underline"
-                  >
-                    {expanded === entity.id ? "Ocultar gastos" : "Ver gastos compartidos"}
-                  </button>
-                </div>
+        </section>
+      );
+    }
 
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="text-gray-400 border-b border-gray-700">
-                        <th className="text-left py-2">Nombre</th>
-                        <th className="text-left py-2">Email</th>
-                        <th className="text-left py-2">Porcentaje</th>
-                        <th className="text-right py-2">Acciones</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {entity.members.map((member) => (
-                        <tr key={member.id} className="border-b border-gray-800">
-                          <td className="py-2">{member.user.name}</td>
-                          <td>{member.user.email}</td>
-                          <td>
-                            <div className="flex items-center gap-2">
-                              <input
-                                type="number"
-                                min="0"
-                                max="100"
-                                step="0.01"
-                                value={shareEdits[member.id] ?? member.share}
-                                onChange={(event) =>
-                                  handleShareEditChange(member.id, event.target.value)
-                                }
-                                className="w-24 rounded-md bg-primary border border-gray-600 p-1 text-white focus:border-accent-from focus:ring-0"
-                              />
-                              <span className="text-gray-400 text-xs">%</span>
-                              <button
-                                type="button"
-                                onClick={() => handleUpdateShare(entity.id, member.id)}
-                                className="text-xs text-blue-400 hover:underline"
-                              >
-                                Guardar
-                              </button>
-                            </div>
-                          </td>
-                          <td className="text-right">
-                            <button
-                              type="button"
-                              onClick={() => handleRemoveMember(entity.id, member.id)}
-                              className="text-red-400 hover:text-red-300"
-                            >
-                              Eliminar
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+    const expenses = entityExpenses[selectedEntity.id] || [];
+    const totals = aggregateEntityTotals(expenses);
+    const selectedPeriod = entityFilters[selectedEntity.id] || "MONTHLY";
+    const visibleExpenses = filterByPeriod(expenses, selectedPeriod);
 
-                <div className="bg-primary/30 rounded-xl p-4 space-y-3">
-                  <h4 className="text-sm font-semibold">Invitar integrante</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                    <input
-                      type="email"
-                      placeholder="Email"
-                      value={memberForms[entity.id]?.email || ""}
-                      onChange={(event) =>
-                        handleMemberFormChange(entity.id, "email", event.target.value)
-                      }
-                      className="rounded-md bg-primary border border-gray-600 p-2 text-white focus:border-accent-from focus:ring-0"
-                    />
-                    <input
-                      type="number"
-                      min="0"
-                      max="100"
-                      step="0.01"
-                      placeholder="Porcentaje"
-                      value={memberForms[entity.id]?.share || ""}
-                      onChange={(event) =>
-                        handleMemberFormChange(entity.id, "share", event.target.value)
-                      }
-                      className="rounded-md bg-primary border border-gray-600 p-2 text-white focus:border-accent-from focus:ring-0"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => handleAddExistingMember(entity.id)}
-                      className="rounded-md bg-gradient-to-r from-green-500 to-emerald-500 font-semibold hover:opacity-90 transition"
-                    >
-                      Agregar
-                    </button>
-                  </div>
-                  <p className="text-xs text-gray-500">
-                    Ajustá los porcentajes de los integrantes actuales antes de sumar uno nuevo para
-                    mantener la suma en 100%.
+    return (
+      <section className="mt-6 space-y-6">
+        <div className="rounded-[32px] border border-border/60 bg-gradient-card p-5 text-text-secondary shadow-soft">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="text-[11px] uppercase tracking-[0.3em] text-text-muted">
+                Entidad seleccionada
+              </p>
+              <div className="mt-2 flex items-center gap-3">
+                <span className="flex h-12 w-12 items-center justify-center rounded-full bg-brand/15 text-brand">
+                  <Building2 size={22} />
+                </span>
+                <div>
+                  <h2 className="text-xl font-semibold text-text-secondary">
+                    {selectedEntity.name}
+                  </h2>
+                  <p className="text-xs text-text-muted">
+                    {selectedEntity.members.length} integrante
+                    {selectedEntity.members.length === 1 ? "" : "s"}
                   </p>
                 </div>
+              </div>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="rounded-3xl border border-border/60 bg-base-dark px-4 py-3 text-sm">
+                <p className="text-[11px] uppercase tracking-wide text-text-muted">
+                  Gasto semanal
+                </p>
+                <p className="mt-1 text-lg font-semibold text-sky-light">
+                  -${formatMoney(totals.weekly)}
+                </p>
+              </div>
+              <div className="rounded-3xl border border-border/60 bg-base-dark px-4 py-3 text-sm">
+                <p className="text-[11px] uppercase tracking-wide text-text-muted">
+                  Gasto mensual
+                </p>
+                <p className="mt-1 text-lg font-semibold text-brand">
+                  -${formatMoney(totals.monthly)}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => handleOpenEdit(selectedEntity)}
+                className="inline-flex items-center gap-2 rounded-full border border-border/60 bg-base-dark px-4 py-2 text-sm font-semibold text-text-secondary transition hover:border-brand"
+              >
+                Editar entidad
+              </button>
+            </div>
+          </div>
 
-                {expanded === entity.id && (
-                  <div className="space-y-3">
-                    <h4 className="text-sm font-semibold uppercase tracking-wide">
-                      Gastos compartidos
-                    </h4>
-                    {loadingExpenses[entity.id] ? (
-                      <p className="text-gray-400 text-sm">Cargando...</p>
-                    ) : !entityExpenses[entity.id] || entityExpenses[entity.id].length === 0 ? (
-                      <EmptyState
-                        icon={ReceiptText}
-                        title="Sin gastos compartidos"
-                        description="Registrá gastos para ver cómo se distribuyen entre los integrantes."
-                        className="border-dashed border-border/70 bg-primary/30"
-                        tone="brand"
-                      />
-                    ) : (
-                      <div className="space-y-3">
-                        {entityExpenses[entity.id].map(renderExpenseBreakdown)}
+          <div className="mt-5 flex gap-2 text-xs font-semibold">
+            {PERIOD_OPTIONS.map((option) => (
+              <button
+                key={`${selectedEntity.id}-${option.key}`}
+                type="button"
+                onClick={() =>
+                  setEntityFilters((prev) => ({ ...prev, [selectedEntity.id]: option.key }))
+                }
+                className={`rounded-full px-4 py-2 transition ${
+                  selectedPeriod === option.key
+                    ? "bg-brand text-base-dark shadow-card"
+                    : "border border-border/60 bg-base-card text-text-muted"
+                }`}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="space-y-4 rounded-4xl border border-border/60 bg-base-card/95 p-6 shadow-soft">
+          <h3 className="text-sm font-semibold text-text-secondary">Movimientos recientes</h3>
+          {loadingExpenses[selectedEntity.id] ? (
+            <p className="text-sm text-text-muted">Cargando movimientos...</p>
+          ) : visibleExpenses.length === 0 ? (
+            <EmptyState
+              icon={Layers}
+              title="Sin movimientos en este período"
+              description="Registrá gastos para ver cómo se distribuyen entre los integrantes."
+              className="border-dashed border-border/60 bg-base-card/80"
+            />
+          ) : (
+            <div className="space-y-3">
+              {visibleExpenses.map((expense) => {
+                const categoryName = expense.category?.name || expense.category || "Gasto";
+                const { Icon, classes } = getCategoryBadge(categoryName);
+                const { time, label } = formatDateParts(expense.date);
+                return (
+                  <div
+                    key={`expense-${expense.id}`}
+                    className="flex items-center justify-between rounded-3xl border border-border/60 bg-base-dark/70 px-4 py-3 text-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <span className={`flex h-10 w-10 items-center justify-center rounded-full ${classes}`}>
+                        <Icon size={18} />
+                      </span>
+                      <div>
+                        <p className="font-semibold text-text-secondary">
+                          {expense.description || categoryName}
+                        </p>
+                        <p className="text-[11px] text-text-muted">
+                          {time} · {label} · {categoryName}
+                        </p>
                       </div>
-                    )}
+                    </div>
+                    <p className="text-sm font-semibold text-sky-light">
+                      -${formatMoney(expense.amount || 0)}
+                    </p>
                   </div>
-                )}
+                );
+              })}
+            </div>
+          )}
+        </div>
+
+        <div className="space-y-3 rounded-4xl border border-border/60 bg-base-card/95 p-6 shadow-soft">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-text-secondary">Integrantes</h3>
+            <p className="text-xs text-text-muted">
+              Total 100%
+            </p>
+          </div>
+          <div className="space-y-3">
+            {selectedEntity.members.map((member) => (
+              <div
+                key={`member-${member.id}`}
+                className="flex items-center justify-between rounded-3xl border border-border/60 bg-base-dark/70 px-4 py-3 text-sm"
+              >
+                <div>
+                  <p className="font-semibold text-text-secondary">{member.user.name}</p>
+                  <p className="text-xs text-text-muted">{member.user.email}</p>
+                </div>
+                <span className="text-sm font-semibold text-text-secondary">
+                  {Number(member.share).toFixed(2)}%
+                </span>
               </div>
             ))}
           </div>
-        )}
+        </div>
       </section>
+    );
+  };
+
+  return (
+    <div className="relative min-h-screen bg-base-darkest text-text-primary">
+      <div className="absolute inset-0 bg-gradient-hero opacity-40" />
+      <div className="relative mx-auto flex min-h-screen w-full max-w-4xl flex-col px-5 pb-24 pt-12">
+        <header className="mb-6 flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="rounded-full border border-border/60 bg-base-card p-2 text-text-secondary transition hover:border-brand"
+            title="Volver"
+          >
+            <ArrowLeft size={18} />
+          </button>
+          <h1 className="text-lg font-semibold text-text-secondary">Entidades</h1>
+          <span className="h-8 w-8" />
+        </header>
+
+        <section className="relative rounded-4xl border border-border/60 bg-base-card p-6 text-text-secondary shadow-card">
+          <button
+            type="button"
+            onClick={handleOpenCreate}
+            className="absolute right-5 top-5 flex h-9 w-9 items-center justify-center rounded-full border border-border/60 bg-base-dark text-lg font-semibold text-text-secondary transition hover:border-brand"
+            title="Crear entidad"
+          >
+            +
+          </button>
+          <div className="pr-12">
+            <p className="text-xs uppercase tracking-[0.35em] text-text-muted">
+              Resumen general
+            </p>
+            <h2 className="mt-2 text-3xl font-display font-semibold text-text-secondary">
+              Entidades y gastos
+            </h2>
+            <p className="mt-2 text-xs text-text-muted max-w-xl">
+              Controlá tus grupos compartidos, revisá los gastos y mantené los porcentajes al día en un solo lugar.
+            </p>
+          </div>
+          <div className="mt-5 flex flex-col gap-3 text-sm md:flex-row md:items-stretch">
+            <div className="grid grid-cols-1 gap-3 md:grid-cols-2 md:flex-1">
+              <div className="rounded-3xl border border-border/60 bg-base-dark/80 px-4 py-4">
+                <p className="text-[11px] uppercase tracking-wide text-text-muted">
+                  Entidades activas
+                </p>
+                <p className="mt-1 text-xl font-semibold text-text-secondary">{entities.length}</p>
+              </div>
+              <div className="rounded-3xl border border-border/60 bg-base-dark/80 px-4 py-4">
+                <p className="text-[11px] uppercase tracking-wide text-text-muted">
+                  Integrantes totales
+                </p>
+                <p className="mt-1 text-xl font-semibold text-text-secondary">{totalMembers}</p>
+              </div>
+            </div>
+            <div className="rounded-3xl border border-border/60 bg-base-dark/80 px-4 py-4 md:w-60">
+              <p className="text-[11px] uppercase tracking-wide text-text-muted">
+                Gasto mensual
+              </p>
+              <p className="mt-1 text-xl font-semibold text-sky-light">
+                -${formatMoney(globalTotals.monthly)}
+              </p>
+            </div>
+          </div>
+        </section>
+
+        {entities.length === 0 ? (
+          <section className="mt-6">
+            <EmptyState
+              icon={Users}
+              title="Todavía no creaste entidades"
+              description="Creá tu primera entidad para dividir gastos con tu familia o equipo."
+              actionLabel="Crear entidad"
+              onAction={handleOpenCreate}
+              className="border-dashed border-border/60 bg-base-card/80"
+            />
+          </section>
+        ) : (
+          <>
+            <div className="mt-6 flex gap-2 overflow-x-auto pb-1 text-xs font-semibold no-scrollbar">
+              {entities.map((entity) => (
+                <button
+                  key={`chip-${entity.id}`}
+                  type="button"
+                  onClick={() => setSelectedEntityId(entity.id)}
+                  className={`flex shrink-0 items-center gap-2 rounded-full border px-4 py-2 transition ${
+                    selectedEntityId === entity.id
+                      ? "border-brand bg-brand text-base-dark shadow-card"
+                      : "border-border/60 bg-base-card text-text-muted"
+                  }`}
+                >
+                  <Building2 size={16} />
+                  {entity.name}
+                </button>
+              ))}
+            </div>
+            {renderEntityDetails()}
+          </>
+        )}
+      </div>
+
+      {renderEntityModal()}
+      <NavBar />
     </div>
   );
 }
